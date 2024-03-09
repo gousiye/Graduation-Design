@@ -1,0 +1,33 @@
+model_params:
+  latent_encoder_dim: 128
+  h_dim: 128
+  save_pre_model: True
+  pre_model_path: 'checkpoint/pre_models'
+  save_model: True
+  model_path: 'checkpoint/models'
+
+
+data_params:
+  data_name: 'HW6'
+  data_path: 'dataset'
+  view_num: 6
+  cluster_num: 10
+  batch_size: 32
+  num_workers: 0
+
+exp_params:
+  lr_ar: 1.0e-3
+  lr_dg: 1.0e-3
+  lr_h: 1.0e-3
+  lr_pre: 1.0e-3
+
+train_params:
+  is_pre_train: True
+  is_pre_H: True
+
+pre_trainer_params:
+  accelerator: 'gpu'
+  devices: [0]
+  max_epochs: 3
+
+logging_params:

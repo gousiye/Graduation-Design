@@ -1,0 +1,14 @@
+model_params:
+  latent_dim: 
+
+data_params:
+  data_name: 'handwritten_2view'
+  data_path: 'dataset'
+  view_num: 2
+  batch_size: 
+
+exp_params:
+
+trainer_params:
+
+logging_params:
