@@ -44,7 +44,7 @@ class PreTrain(pl.LightningModule):
         self.log('ae_pre_loss', ae_pre_loss)
         return {'loss':ae_pre_loss}
     
-    def training_epoch_start(self) -> None:
+    def on_train_epoch_start(self) -> None:
         for i in range(len(self.loss)):
             self.loss[i] = 0
 
@@ -70,7 +70,7 @@ class PreTrain(pl.LightningModule):
     def on_train_end(self):
         print()
         print("最好的预训练模型在第{i}个epoch, 其ae_pre_loss为{loss:.4f}".format(i = self.best_epoch_idx, loss = self.min_loss) )
-        print("----------------------训练结束---------------------")
+        print("----------------------预训练结束---------------------")
         print()
         for i in range(len(self.encoder_decoder)):
             self.encoder_decoder[i].load_state_dict(self.best_preModel_state[i])

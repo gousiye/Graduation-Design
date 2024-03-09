@@ -15,10 +15,10 @@ pre_trainer_params:
   - 0
   max_epochs: 3
 loss:
-  ae_pre_loss: 0.09859313070774078
+  ae_pre_loss: 0.12929418683052063
   view_loss:
-    view[0]: 22.442617416381836
-    view[1]: 23.76226806640625
+    view[0]: 12.036296844482422
+    view[1]: 6.194181442260742
 model_structure:
   encoder_decoders:
     '[0]':

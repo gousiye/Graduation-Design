@@ -13,10 +13,10 @@ data_params:
   view_num: 6
   cluster_num: 10
   batch_size: 32
-  num_workers: 0
+  num_workers: 2
 
 exp_params:
-  lr_ar: 1.0e-3
+  lr_ae: 1.0e-3
   lr_dg: 1.0e-3
   lr_h: 1.0e-3
   lr_pre: 1.0e-3
@@ -28,6 +28,9 @@ train_params:
 pre_trainer_params:
   accelerator: 'gpu'
   devices: [0]
-  max_epochs: 3
+  max_epochs: 10
 
-logging_params:
+log_params:
+  pre_log_path: "logs/pre_train_logs"
+  log_path: "logs/train_logs"
+
