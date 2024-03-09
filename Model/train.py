@@ -48,6 +48,12 @@ class Train(pl.LightningModule):
         pre_model_path = os.path.join(pre_folder_path, self.data_name) + '.pth.tar'
         pre_param_path = os.path.join(pre_folder_path, self.data_name) + '.yaml'
 
+        hyper_parameters = ParameterTool.CutDescription(self.config)
+        model_parameters = ParameterTool.GetModelDescription(self.cluster_model, is_pre = True)
+        loss_parameters = {}
+        description = {}
+
+
         if not os.path.exists(pre_folder_path):
             os.makedirs(pre_folder_path)
         if self.is_pre_train == True:  
@@ -63,11 +69,6 @@ class Train(pl.LightningModule):
                 callbacks=[ModelCheckpoint(save_last=False, save_top_k=0, monitor=None)],
                 **self.config['pre_trainer_params'])
             preTrainer.fit(pretrain, self.cluster_dataset)
-            
-            hyper_parameters = ParameterTool.CutDescription(self.config)
-            model_parameters = ParameterTool.GetModelDescription(self.cluster_model, is_pre = True)
-            loss_parameters = {}
-            description = {}
 
             # 保存训练的模型
             if self.save_pre_model == True:
@@ -96,6 +97,7 @@ class Train(pl.LightningModule):
 
         else:   
             assert os.path.exists(pre_model_path), '该模型没有存储文件'
+            loss_parameters = {}
             FileTool.LoadModel(pre_model_path, self.cluster_model, loss_parameters)
             print("------------------------")
             print('\033[94m' + "已从{path}读取预训练AE模型".format(path = pre_model_path) + '\033[0m')
