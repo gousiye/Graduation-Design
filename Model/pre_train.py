@@ -34,13 +34,18 @@ class PreTrain(pl.LightningModule):
         print()
         
 
-    def training_step(self, batch:Tuple, batch_idx:int):
-        features, _, _ = batch
-        ae_pre_loss = 0
+    # pytorch_lightning 只要在training_step中正确计算，优化器参数列表包含就可以。这样也是可以的
+    def forward(self, features):
+        ae_pre_loss_tmp = 0
         for i in range(len(features)):
             tmpMSE = nn.MSELoss()(features[i], self.encoder_decoder[i](features[i]))
             self.loss[i] += tmpMSE
-            ae_pre_loss += tmpMSE
+            ae_pre_loss_tmp += tmpMSE
+        return ae_pre_loss_tmp
+
+    def training_step(self, batch:Tuple, batch_idx:int):
+        features, _, _ = batch
+        ae_pre_loss = self.forward(features)
         self.log('ae_pre_loss', ae_pre_loss)
         return {'loss':ae_pre_loss}
     
@@ -75,9 +80,6 @@ class PreTrain(pl.LightningModule):
         for i in range(len(self.encoder_decoder)):
             self.encoder_decoder[i].load_state_dict(self.best_preModel_state[i])
             pass
-
-    def forward():
-        pass
 
     def configure_optimizers(self):
         params = []
