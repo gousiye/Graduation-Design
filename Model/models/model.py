@@ -13,7 +13,6 @@ class ClusterModel(torch.nn.Module):
         view_feature_dim_list: List[int], 
         latent_encoder_dim:int, 
         cluster_num:int,
-        device_num: int,
         encode_code_list:List[str], 
         decode_code_list:List[str],
     ):
@@ -24,7 +23,6 @@ class ClusterModel(torch.nn.Module):
                 view_feature_dim_list[i], 
                 latent_encoder_dim, 
                 cluster_num,
-                device_num, 
                 encode_code_list[i], 
                 decode_code_list[i]
             )
@@ -37,7 +35,6 @@ class ClusterModel(torch.nn.Module):
         latent_encoder_dim:int, 
         H_dim:int, 
         cluster_num: int, 
-        device_num:int, 
         code: List[str]
     ):
         degradation = Degradation(
@@ -45,7 +42,6 @@ class ClusterModel(torch.nn.Module):
             latent_encoder_dim,
             H_dim,
             cluster_num, 
-            device_num,
             code
         )
         return degradation
@@ -54,7 +50,7 @@ class ClusterModel(torch.nn.Module):
     def __init__(
         self, 
         encoder_decoder: List[EncoderDecoder], 
-        degradation: Degradation = None,
+        degradation: Degradation,
         **kwargs:dict
     ) -> None:
         super(ClusterModel, self).__init__()

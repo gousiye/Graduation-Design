@@ -27,8 +27,14 @@ class Train(pl.LightningModule):
         self.cluster_dataset = cluster_dataset
         self.config = config
         self.InitVariables()
+        self.__toCuda()
         self.__GetPreModel()
 
+    def __toCuda(self):
+        for iter in self.cluster_model.encoder_decoder:
+            iter.encoders.to(f'cuda:{self.devices[0]}')
+            iter.decoders.to(f'cuda:{self.devices[0]}')
+            iter.center.to(f'cuda:{self.devices[0]}')
 
     def InitVariables(self):
         """
@@ -53,8 +59,10 @@ class Train(pl.LightningModule):
         if self.is_pre_train == True:  
             preTrainer = Trainer(
                 logger = False,
-                callbacks=[ModelCheckpoint(save_last=False, save_top_k=0, monitor=None)],
-                **self.config['pre_trainer_params'])
+                callbacks = [ModelCheckpoint(save_last=False, save_top_k=0, monitor=None)],
+                accelerator = self.pre_accelerator,
+                devices = self.pre_devices,
+                max_epochs = self.pre_max_epochs)
             preTrainer.fit(pretrain, self.cluster_dataset)
 
         pretrain.ProcessEnd(
@@ -82,6 +90,7 @@ class Train(pl.LightningModule):
         opt_ae.step()
         return ae_loss
 
+
     def train_dg(self, features: Tensor) -> Tensor:
         """
         固定H训练degrade退化网络
@@ -90,30 +99,47 @@ class Train(pl.LightningModule):
         for para_name, para_tensor in self.cluster_model.degradation.named_parameters():
             if para_name == 'H':
                para_tensor.requires_grad = False
-        opt_dg = opt_ae = self.optimizers()[1]
+        
+        opt_dg = self.optimizers()[1]
+        opt_dg.zero_grad()
+        # train_ae更新ae网络后才调用，需要重新计算
+        z_half_list =  self.cluster_model.get_z_half_list(features)
+        view_h_list = self.cluster_model.degradation.get_view_h_list()
+        dg_loss = Metric.GetAverageMSE(z_half_list, view_h_list)
+        self.manual_backward(dg_loss)
+        opt_dg.step()
+        return dg_loss
+
+    def train_h(self, features:Tensor) -> Tensor:
+        """
+        训练H
+        """
+        # 打开H的梯度优化
+        for para_name, para_tensor in self.cluster_model.degradation.named_parameters():
+            if para_name == 'H':
+               para_tensor.requires_grad = True
 
     def training_step(self, batch: Tuple, batch_size):
         features, labels, h = batch
         self.cluster_model.degradation.set_H(h)
         ae_loss = self.train_ae(features)
-        self.train_dg(features)
+        dg_loss = self.train_dg(features)
+        self.train_h(features)
         self.log('ae_loss', ae_loss)
-        # print()
-        # print(ae_loss)
-        return {'loss':ae_loss, 'ae_loss':ae_loss}
+        self.log('dg_loss', dg_loss)
+        return {'loss':ae_loss, 'ae_loss':ae_loss, 'dg_loss':dg_loss}
 
     def training_epoch_end(self, outputs: List) -> None:
         print()
-        for para in self.cluster_model.degradation.parameters():
-            print(para.shape)
-        # opt_dg = self.optimizers()[1]
-        
-        # for param_group in opt_dg.param_groups:
-        #     for param in param_group['params']:
-        #         print(param.name, param.shape, param.dtype)
-        # pass
-
-    
+        # for group in self.optimizers()[1].param_groups:
+        #     for param in group['params']:
+        #         print(param.shape)
+        # print('----------------------------------------------------')
+        # for group in self.optimizers()[2].param_groups:
+        #     for param in group['params']:
+        #         print(param.shape)
+        # print("----------------------------------------------------")
+        # print(self.cluster_model.degradation.H)
 
     def configure_optimizers(self) -> dict:
         optims = []
@@ -121,9 +147,8 @@ class Train(pl.LightningModule):
         for iter in self.cluster_model.encoder_decoder:
             ae_params.extend(iter.parameters())
         optims.append(optim.Adam(ae_params, lr = self.lr_ae))
-        optims.append(optim.Adam(ae_params, lr = self.lr_ae))
-        # optims.append(optim.Adam(ae_params, lr = self.lr_ae))
-        # optims.append(optim.Adam(self.cluster_model.degradation.parameters(), lr = self.lr_ae))
+        optims.append(optim.Adam(self.cluster_model.degradation.parameters(), lr = self.lr_dg))
+        optims.append(optim.Adam(self.cluster_model.degradation.parameters(), lr = self.lr_h))
         return optims
 
 

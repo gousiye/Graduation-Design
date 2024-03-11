@@ -18,7 +18,7 @@ class ParameterTool:
             'model_params': ['latent_encoder_dim','H_dim','save_pre_model', 'pre_model_path'],
             'data_params':['data_name', 'view_num', 'cluster_num', 'batch_size', 'num_workers'],
             'exp_params':['lr_pre'],
-            'pre_trainer_params':['accelerator', 'devices', 'max_epochs'],
+            'pre_trainer_params':['pre_accelerator', 'pre_devices', 'pre_max_epochs'],
             'log_params':['pre_log_path']
         }
         for para_aspect in field:

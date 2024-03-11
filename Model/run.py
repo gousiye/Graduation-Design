@@ -38,7 +38,6 @@ def ConstructModelAndDataset():
         myDataset.GetViewDims(), 
         config['model_params']['latent_encoder_dim'], 
         myDataset.GetClusterNum(), 
-        config['pre_trainer_params']['devices'][0],
         test.encoder_code_list, 
         test.decoder_code_list
     )
@@ -48,7 +47,6 @@ def ConstructModelAndDataset():
         config['model_params']['latent_encoder_dim'],
         config['model_params']['H_dim'],
         myDataset.GetClusterNum(),
-        config['pre_trainer_params']['devices'][0],
         test.degrade_code,
     )
     cluster_model = ClusterModel(encoders_decoders, degradation)

@@ -2,8 +2,9 @@ from torch import nn
 from typing import List,  Union, Any, TypeVar, Tuple
 from torch import Tensor
 import torch
+from models.submodels import BaseModel
 
-class Degradation(nn.Module):
+class Degradation(BaseModel):
     def __init__(self):
         super(Degradation, self).__init__()
         pass
@@ -14,21 +15,19 @@ class Degradation(nn.Module):
         latent_encoder_dim:int, 
         H_dim:int,
         cluster_num: int, 
-        device_num: int,
         degrade_net_code:List[str]
     ):
         super(Degradation, self).__init__()
-        self.device_num = device_num
         self.H_dim = H_dim
         self.latent_encoder_dim = latent_encoder_dim
-        self.H = torch.nn.Parameter(torch.FloatTensor(batch_size, H_dim)).to(f'cuda:{self.device_num}')
-        self.center = torch.nn.Parameter(torch.FloatTensor(cluster_num, latent_encoder_dim)).to(f'cuda:{self.device_num}') # k x d 
+        self.H = torch.nn.Parameter(torch.FloatTensor(batch_size, H_dim))
+        self.center = torch.nn.Parameter(torch.FloatTensor(cluster_num, latent_encoder_dim)) # k x d 
         self.alpha = 1
         self.degrader = torch.nn.ModuleList()
         for i in range(len(degrade_net_code)):
             degrade_code = 'self.degrader.append(' + degrade_net_code[i] +')'
             exec(degrade_code)
-            self.degrader[i].to(f'cuda:{self.device_num}')
+            super().InitCoefficient(self.degrader[i])
 
     def get_view_h_list(self) -> List[Tensor]:
         """

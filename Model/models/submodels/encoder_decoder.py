@@ -3,10 +3,10 @@ from torch import nn
 from torch.nn import functional as F
 from torch import Tensor
 from typing import List,  Union, Any, TypeVar, Tuple
-
+from models.submodels import BaseModel
 
 # 自动编码解码器
-class EncoderDecoder(nn.Module):
+class EncoderDecoder(BaseModel):
     def __init__(self):
         super(EncoderDecoder, self).__init__()
         pass
@@ -15,8 +15,7 @@ class EncoderDecoder(nn.Module):
         self, 
         feature_dim:int, 
         latent_encoder_dim:int, 
-        cluster_num:int, 
-        device_num: int, 
+        cluster_num:int,  
         encoder_code:str, 
         decoder_code:str
     )->None:
@@ -24,30 +23,20 @@ class EncoderDecoder(nn.Module):
 
         self.feature_dim = feature_dim
         self.latent_encoder_dim = latent_encoder_dim
-        self.device_num = device_num
         self.encoder_code = "self.encoders = " + encoder_code
         self.decoder_code = "self.decoders = " + decoder_code
-        self.center = torch.nn.Parameter(torch.FloatTensor(cluster_num, latent_encoder_dim)).to(f'cuda:{self.device_num}')  # k x d 
+        self.center = torch.nn.Parameter(torch.FloatTensor(cluster_num, latent_encoder_dim))  # k x d 
         # print(self.center.shape)
         self.alpha = 1
         exec(self.encoder_code)
         exec(self.decoder_code)
 
-        self.encoders.to(f'cuda:{self.device_num}')
-        self.decoders.to(f'cuda:{self.device_num}')
+        super().InitCoefficient(self.encoders)
+        super().InitCoefficient(self.decoders)
 
-        self.InitCoefficient(self.encoders)
-        self.InitCoefficient(self.decoders)
 
-    # 初始化线性层的系数，偏置
-    def InitCoefficient(self, model:torch.nn.Module) -> None:
-        for iter in model:
-            if isinstance(iter, nn.Linear):
-                torch.nn.init.xavier_uniform_(iter.weight)
-                torch.nn.init.constant_(iter.bias, 0)
     
     def forward(self, x: List[Tensor])-> List[Tensor]:
-        x = x.to(f'cuda:{self.device_num}')
         z = self.get_z_half(x)
         x_reconstruct = self.decoders(z)
         return x_reconstruct
