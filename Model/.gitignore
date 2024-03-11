@@ -2,4 +2,4 @@ __pycache__
 
 dataset/shuffled_ORL_2views.mat
 dataset/shuffled_LandUse_2views.mat
-/Modes/logs/
+logs/
