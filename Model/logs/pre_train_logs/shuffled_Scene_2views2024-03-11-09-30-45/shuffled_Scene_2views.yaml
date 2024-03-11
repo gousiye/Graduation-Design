@@ -19,10 +19,10 @@ pre_trainer_params:
 log_params:
   pre_log_path: logs/pre_train_logs
 loss:
-  ae_pre_loss: 0.12209495902061462
+  ae_pre_loss: 0.11149237304925919
   view_loss:
-    view[0]: 11.187281608581543
-    view[1]: 6.028107643127441
+    view[0]: 9.770376205444336
+    view[1]: 5.950049877166748
 model_structure:
   encoder_decoders:
     '[0]':

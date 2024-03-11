@@ -12,23 +12,20 @@ class ParameterTool:
         raise TypeError("这是一个静态工具类，不能被实例化")
     
     @staticmethod
-    def CutDescription(description: dict) -> dict:
-        cutted_description = copy.deepcopy(description)
-        redundant_field = [
-            {'model_params': ['save_pre_model','pre_model_path','save_model', 'model_path']},
-            {'data_params':['data_path']},
-            {'exp_params':['lr_ae', 'lr_dg', 'lr_h']},
-            {'train_params':['is_pre_train', 'is_pre_H']},
-            {'log_params':['pre_log_path','log_path']}
-        ]
-        for dict in redundant_field:
-            para_aspect = next(iter(dict))
-            for para in dict[para_aspect]:
-                del cutted_description[para_aspect][para]
-            if len(cutted_description[para_aspect]) == 0:
-                del cutted_description[para_aspect]
-
-        return cutted_description
+    def PreDescription(config) -> dict:
+        pre_description = {}
+        field = {
+            'model_params': ['latent_encoder_dim','H_dim','save_pre_model', 'pre_model_path'],
+            'data_params':['data_name', 'view_num', 'cluster_num', 'batch_size', 'num_workers'],
+            'exp_params':['lr_pre'],
+            'pre_trainer_params':['accelerator', 'devices', 'max_epochs'],
+            'log_params':['pre_log_path']
+        }
+        for para_aspect in field:
+            pre_description[para_aspect] = {}
+            for index, param in enumerate(field[para_aspect]):
+               pre_description[para_aspect][param] = config[para_aspect][field[para_aspect][index]]
+        return pre_description
 
     @staticmethod
     def __GetEncoderDescription(encoder_decoder:List[EncoderDecoder]) -> dict:
@@ -46,8 +43,9 @@ class ParameterTool:
 
 
     @staticmethod
-    def GetModelDescription(cluster_model: ClusterModel, is_pre: bool) -> dict:
+    def GetModelDescription(cluster_model: ClusterModel) -> dict:
         """
+        完整模型的版本
         model_structure:
             encoder_decoders:
                 [0]:
@@ -58,10 +56,23 @@ class ParameterTool:
         """   
         encoders_description = ParameterTool.__GetEncoderDescription(cluster_model.encoder_decoder)
         descripition = {'model_structure':encoders_description}
-        if(is_pre == True):
-            return descripition
-        else:
-            return descripition
+        return descripition
+        
+
+    @staticmethod
+    def GePretModelDescription(encoder_decoder:List[EncoderDecoder]) -> dict:
+        """
+        预训练模型的版本
+        model_structure:
+            encoder_decoders:
+                [0]:
+                    encoder: Linear()
+                             ReLU
+                    decoder: Linear()
+        """   
+        encoders_description = ParameterTool.__GetEncoderDescription(encoder_decoder)
+        descripition = {'model_structure':encoders_description}
+        return descripition
         
     @staticmethod
     def GetPreLossDescription(ae_pre_loss: Tensor, view_loss:List[Tensor]):

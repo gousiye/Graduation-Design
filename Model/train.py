@@ -1,7 +1,7 @@
 import pytorch_lightning as pl
 from pytorch_lightning.utilities.types import EPOCH_OUTPUT
 import torch
-from utils import ClusterDataset, FileTool, ParameterTool
+from utils import ClusterDataset, FileTool, ParameterTool, Metric
 from typing import Tuple
 import torch.nn as nn
 from models import ClusterModel
@@ -22,11 +22,12 @@ class Train(pl.LightningModule):
         config: dict
     )->None:
         super(Train, self).__init__()
+        self.automatic_optimization = False
         self.cluster_model = cluster_model
         self.cluster_dataset = cluster_dataset
         self.config = config
         self.InitVariables()
-        self.GetPreModel()
+        self.__GetPreModel()
 
 
     def InitVariables(self):
@@ -38,78 +39,93 @@ class Train(pl.LightningModule):
                 setattr(self, parameter, self.config[param_aspect][parameter])
 
 
-    def GetPreModel(self):
+    def __GetPreModel(self):
         """
         训练或者读取, 得到预训练的模型, 初始化AE的参数
         """
-        description = {'a' :12}
-        now_time = datetime.datetime.now().strftime('%Y-%m-%d-%H-%M-%S')
-        pre_folder_path = os.path.join(self.pre_model_path, self.data_name)    
-        pre_model_path = os.path.join(pre_folder_path, self.data_name) + '.pth.tar'
-        pre_param_path = os.path.join(pre_folder_path, self.data_name) + '.yaml'
-
-        hyper_parameters = ParameterTool.CutDescription(self.config)
-        model_parameters = ParameterTool.GetModelDescription(self.cluster_model, is_pre = True)
-        loss_parameters = {}
-        description = {}
-
-
-        if not os.path.exists(pre_folder_path):
-            os.makedirs(pre_folder_path)
-        if self.is_pre_train == True:  
-            pretrain = PreTrain(
+        pretrain = PreTrain(
                 self.cluster_model.encoder_decoder,
                 self.lr_pre,
                 self.cluster_num,
                 self.config
-            )
-
+        )
+        
+        if self.is_pre_train == True:  
             preTrainer = Trainer(
                 logger = False,
                 callbacks=[ModelCheckpoint(save_last=False, save_top_k=0, monitor=None)],
                 **self.config['pre_trainer_params'])
             preTrainer.fit(pretrain, self.cluster_dataset)
 
-            # 保存训练的模型
-            if self.save_pre_model == True:
-                loss_parameters = ParameterTool.GetPreLossDescription(pretrain.min_loss, pretrain.loss)
-                
-                log_folder_path = os.path.join(self.pre_log_path, self.data_name)    + now_time 
-                log_model_path = os.path.join(log_folder_path, self.data_name) + '.pth.tar'
-                log_parm_path = os.path.join(log_folder_path, self.data_name) + '.yaml'
-                
-                if not os.path.exists(log_folder_path):
-                    os.makedirs(log_folder_path)
+        pretrain.ProcessEnd(
+            ParameterTool.PreDescription(self.config), 
+            self.is_pre_train,
+            self.save_pre_model
+        )
 
-                FileTool.SaveModel(pre_model_path, self.cluster_model.encoder_decoder, loss_parameters)
-                FileTool.SaveModel(log_model_path, self.cluster_model.encoder_decoder, loss_parameters)
+    def forward(self):
+        return self.cluster_model
+    
+    def train_ae(self, features:Tensor) -> Tensor:
+        """
+        训练AE网络
+        """
+        opt_ae = self.optimizers()[0]
+        opt_ae.zero_grad()
+        z_half_list =  self.cluster_model.get_z_half_list(features)
+        ae_recon_list = self.cluster_model.get_ae_recon_list(features)
+        view_h_list = self.cluster_model.degradation.get_view_h_list()
+        ae_recon_loss = Metric.GetAverageMSE(features, ae_recon_list)
+        ae_degrade_loss = Metric.GetAverageMSE(view_h_list, z_half_list)
+        ae_loss = ae_recon_loss + ae_degrade_loss
+        self.manual_backward(ae_loss)
+        opt_ae.step()
+        return ae_loss
 
-                description.update(hyper_parameters)
-                description.update(loss_parameters)
-                description.update(model_parameters)
+    def train_dg(self, features: Tensor) -> Tensor:
+        """
+        固定H训练degrade退化网络
+        """
+        # 关闭H的梯度优化
+        for para_name, para_tensor in self.cluster_model.degradation.named_parameters():
+            if para_name == 'H':
+               para_tensor.requires_grad = False
+        opt_dg = opt_ae = self.optimizers()[1]
 
-                FileTool.SaveConfigYaml(pre_param_path,description)
-                FileTool.SaveConfigYaml(log_parm_path,description)
-                
-                print("------------------------")
-                print('\033[94m' + "已保存预训练AE模型到{path}".format(path = pre_model_path) + '\033[0m')
-                print("------------------------")
+    def training_step(self, batch: Tuple, batch_size):
+        features, labels, h = batch
+        self.cluster_model.degradation.set_H(h)
+        ae_loss = self.train_ae(features)
+        self.train_dg(features)
+        self.log('ae_loss', ae_loss)
+        # print()
+        # print(ae_loss)
+        return {'loss':ae_loss, 'ae_loss':ae_loss}
 
-        else:   
-            assert os.path.exists(pre_model_path), '该模型没有存储文件'
-            loss_parameters = {}
-            FileTool.LoadModel(pre_model_path, self.cluster_model, loss_parameters)
-            print("------------------------")
-            print('\033[94m' + "已从{path}读取预训练AE模型".format(path = pre_model_path) + '\033[0m')
-            print("------------------------")
-            
-            description.update(hyper_parameters)
-            description.update(loss_parameters)
-            description.update(model_parameters)
-            FileTool.SaveConfigYaml(
-                pre_param_path,
-                description
-            )
+    def training_epoch_end(self, outputs: List) -> None:
+        print()
+        for para in self.cluster_model.degradation.parameters():
+            print(para.shape)
+        # opt_dg = self.optimizers()[1]
+        
+        # for param_group in opt_dg.param_groups:
+        #     for param in param_group['params']:
+        #         print(param.name, param.shape, param.dtype)
+        # pass
+
+    
+
+    def configure_optimizers(self) -> dict:
+        optims = []
+        ae_params = []
+        for iter in self.cluster_model.encoder_decoder:
+            ae_params.extend(iter.parameters())
+        optims.append(optim.Adam(ae_params, lr = self.lr_ae))
+        optims.append(optim.Adam(ae_params, lr = self.lr_ae))
+        # optims.append(optim.Adam(ae_params, lr = self.lr_ae))
+        # optims.append(optim.Adam(self.cluster_model.degradation.parameters(), lr = self.lr_ae))
+        return optims
+
 
 if __name__ == '__main__':
     pass

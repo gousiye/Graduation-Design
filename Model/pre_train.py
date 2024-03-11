@@ -7,6 +7,9 @@ from typing import List, Optional, Sequence, Union, Any, Callable, Dict
 import torch
 from torch import Tensor
 from torch import optim
+import datetime
+import os
+from utils import ClusterDataset, FileTool, ParameterTool
 
 class PreTrain(pl.LightningModule):
 
@@ -27,6 +30,11 @@ class PreTrain(pl.LightningModule):
         self.min_loss = float('inf')
         self.best_preModel_state = [None] * len(self.encoder_decoder)
         self.best_epoch_idx = -1
+        self.config = {}
+
+    def __SaveBetterModel(self):
+        for i in range(len(self.encoder_decoder)):
+            self.best_preModel_state[i] = self.encoder_decoder[i].state_dict()
 
     def on_train_start(self) -> None:
         print()
@@ -35,7 +43,7 @@ class PreTrain(pl.LightningModule):
         
 
     # pytorch_lightning 只要在training_step中正确计算，优化器参数列表包含就可以。这样也是可以的
-    def forward(self, features):
+    def forward(self, features:List[Tensor]):
         ae_pre_loss_tmp = 0
         for i in range(len(features)):
             tmpMSE = nn.MSELoss()(features[i], self.encoder_decoder[i](features[i]))
@@ -70,7 +78,7 @@ class PreTrain(pl.LightningModule):
         if self.best_epoch_idx == -1 or ae_pre_loss < self.min_loss:
             self.best_epoch_idx = current_epoch
             self.min_loss = ae_pre_loss
-            self.SaveBetterModel()
+            self.__SaveBetterModel()
     
     def on_train_end(self):
         print()
@@ -85,14 +93,70 @@ class PreTrain(pl.LightningModule):
         params = []
         for iter in self.encoder_decoder:
             params.extend(iter.parameters())
-        return optim.Adam(params, lr = 0.001)
+        return optim.Adam(params, lr = self.lr)
 
-    def SaveBetterModel(self):
-        for i in range(len(self.encoder_decoder)):
-            self.best_preModel_state[i] = self.encoder_decoder[i].state_dict()
+    
+    def ProcessEnd(self, config:dict, is_pretrain:bool, is_save:bool) -> None:
+        """
+        保存模型,日志
+        读取模型
+        """
+        model_path = config['model_params']['pre_model_path']
+        log_path = config['log_params']['pre_log_path']
+        data_name = config['data_params']['data_name']
+       
+        description = {}
 
+        now_time = datetime.datetime.now().strftime('%Y-%m-%d-%H-%M-%S')
+        check_folder_path = os.path.join(model_path, data_name)    
+        check_model_path = os.path.join(check_folder_path, data_name) + '.pth.tar'
+        check_param_path = os.path.join(check_folder_path, data_name) + '.yaml'
 
+        log_folder_path = os.path.join(log_path, data_name + now_time)    
+        log_model_path = os.path.join(log_folder_path, data_name) + '.pth.tar'
+        log_param_path = os.path.join(log_folder_path, data_name) + '.yaml'
 
+        hyper_parameters = config
+        model_parameters = ParameterTool.GePretModelDescription(self.encoder_decoder)
+
+        # 保存训练的模型
+        if is_pretrain == True:
+            if is_save == True:
+                if not os.path.exists(check_folder_path):
+                    os.makedirs(check_folder_path)
+                if not os.path.exists(log_folder_path):
+                    os.makedirs(log_folder_path)
+                loss_parameters = ParameterTool.GetPreLossDescription(self.min_loss, self.loss)        
+
+                FileTool.SavePreModel(check_model_path, self.encoder_decoder, loss_parameters)
+                FileTool.SavePreModel(log_model_path, self.encoder_decoder, loss_parameters)
+
+                description.update(hyper_parameters)
+                description.update(loss_parameters)
+                description.update(model_parameters)
+
+                FileTool.SaveConfigYaml(check_param_path, description)
+                FileTool.SaveConfigYaml(log_param_path, description)
+                
+                print("------------------------")
+                print('\033[94m' + "已保存预训练AE模型到{path}".format(path = check_param_path) + '\033[0m')
+                print("------------------------")
+
+        else:   
+            assert os.path.exists(check_model_path), '该模型没有存储文件'
+            loss_parameters = {}
+            FileTool.LoadPreModel(check_model_path, self.encoder_decoder, loss_parameters)
+            print("------------------------")
+            print('\033[94m' + "已从{path}读取预训练AE模型".format(path = check_param_path) + '\033[0m')
+            print("------------------------")
+            
+            description.update(hyper_parameters)
+            description.update(loss_parameters)
+            description.update(model_parameters)
+            FileTool.SaveConfigYaml(
+                check_param_path,
+                description
+            )
 
 if __name__ == '__main__':
     pass

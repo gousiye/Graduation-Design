@@ -34,11 +34,20 @@ class ClusterModel(torch.nn.Module):
     @staticmethod
     def GenerateDegradation(
         batch_size:int, 
+        latent_encoder_dim:int, 
+        H_dim:int, 
         cluster_num: int, 
-        code:str, 
-        **kwargs
+        device_num:int, 
+        code: List[str]
     ):
-        degradation = Degradation(batch_size, kwargs['latent_encoder_dim'], kwargs['h_dim'], cluster_num, code)
+        degradation = Degradation(
+            batch_size, 
+            latent_encoder_dim,
+            H_dim,
+            cluster_num, 
+            device_num,
+            code
+        )
         return degradation
         
 
@@ -52,7 +61,20 @@ class ClusterModel(torch.nn.Module):
         self.encoder_decoder = encoder_decoder #编码器，解码器
         self.degradation = degradation
 
+    def get_z_half_list(self, features:List[Tensor]) -> List[Tensor]:
+        result = [None] * len(self.encoder_decoder)
+        for i in range(len(self.encoder_decoder)):        
+            result[i] = self.encoder_decoder[i].get_z_half(features[i])
+        return result
+
+    def get_ae_recon_list(self, features:List[Tensor]) -> List[Tensor]:
+        result = [None] * len(self.encoder_decoder)
+        for i in range(len(self.encoder_decoder)):        
+            result[i] = self.encoder_decoder[i](features[i])
+        return result
+
     def forward(self):
+        # return self
         pass
 
 

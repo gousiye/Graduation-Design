@@ -46,16 +46,13 @@ class FileTool:
 
 
     @staticmethod
-    def SaveModel(
-        path: str, 
+    def __CacheAEModel(
         encoder_list: List[EncoderDecoder], 
         loss: dict = None, 
-        degradation: Degradation = None
-    ) -> None:
+    ) -> dict:
         """
-        保存预训练，训练的模型
+        保存AE模型到字典中
         """
-        assert str is not None, "模型存储路径不能为空"
         save_dict = {}
         save_dict['view_num'] = len(encoder_list)
         for i in range(len(encoder_list)):
@@ -64,26 +61,46 @@ class FileTool:
         if loss is not None:
             for key in loss:
                 save_dict[key] = loss[key]
-        torch.save(save_dict, path)
+        return save_dict
 
 
     @staticmethod
-    def LoadModel(
-        path:str, 
-        clusterModel: ClusterModel,
-        loss: dict = None, 
-    ) -> None:
+    def __ReadAEModel(
+        checkPoint:dict,
+        encoder_decoder: List[EncoderDecoder], 
+        loss:dict,
+    ) -> tuple:
+        """
+        读取AE模型
+        """
         loss.clear()
-        checkPoint = torch.load(path)
         encoder_list = [None] * checkPoint['view_num']
-        degradation = None
-        assert len(encoder_list) == len(clusterModel.encoder_decoder), "模型与读取模型的视角数不匹配"
+        assert len(encoder_list) == len(encoder_decoder), "模型与读取模型的视角数不匹配"
         for i in range(len(encoder_list)):
             model_key = "AE{num}".format(num = i)
-            clusterModel.encoder_decoder[i].load_state_dict(checkPoint[model_key], False)
+            encoder_decoder[i].load_state_dict(checkPoint[model_key], False)
         if loss is not None:
             loss['loss'] = checkPoint['loss']
-        pass
 
 
+    @staticmethod
+    def SavePreModel(
+        path:str,
+        encoder_list :List[EncoderDecoder],
+        loss: dict = None,
+    )->None:
+        save_dic = FileTool.__CacheAEModel(encoder_list, loss)
+        torch.save(save_dic, path)
+
+
+    @staticmethod
+    def LoadPreModel(
+        path:str,
+        encoder_decoder :List[EncoderDecoder],
+        loss: dict = None,
+    )->None:
+        assert path is not None, "读取路径为空"
+        assert os.path.exists(path), "改路径不存在模型文件"
+        checkPoint = torch.load(path)
+        FileTool.__ReadAEModel(checkPoint, encoder_decoder,loss)
 

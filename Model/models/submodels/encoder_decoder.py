@@ -27,7 +27,7 @@ class EncoderDecoder(nn.Module):
         self.device_num = device_num
         self.encoder_code = "self.encoders = " + encoder_code
         self.decoder_code = "self.decoders = " + decoder_code
-        self.center = torch.nn.Parameter(torch.FloatTensor(cluster_num, latent_encoder_dim))  # k x d 
+        self.center = torch.nn.Parameter(torch.FloatTensor(cluster_num, latent_encoder_dim)).to(f'cuda:{self.device_num}')  # k x d 
         # print(self.center.shape)
         self.alpha = 1
         exec(self.encoder_code)
@@ -58,6 +58,7 @@ class EncoderDecoder(nn.Module):
     # 计算聚类分配软分布
     def get_q(self, z):
         xe = torch.unsqueeze(z, 1) - self.center
+        pass
 
     
 

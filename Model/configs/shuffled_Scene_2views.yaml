@@ -1,6 +1,6 @@
 model_params:
   latent_encoder_dim: 128
-  h_dim: 128
+  H_dim: 128
   save_pre_model: True
   pre_model_path: 'checkpoint/pre_models'
   save_model: True
@@ -11,7 +11,7 @@ data_params:
   data_name: 'shuffled_Scene_2views'
   data_path: 'dataset'
   view_num: 2
-  cluster_num: 10
+  cluster_num: 15
   batch_size: 32
   num_workers: 0
 
@@ -22,10 +22,15 @@ exp_params:
   lr_pre: 1.0e-3
 
 train_params:
-  is_pre_train: True
+  is_pre_train: False
   is_pre_H: True
 
 pre_trainer_params:
+  accelerator: 'gpu'
+  devices: [0]
+  max_epochs: 3
+
+trainer_params:
   accelerator: 'gpu'
   devices: [0]
   max_epochs: 3

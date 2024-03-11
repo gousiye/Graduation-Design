@@ -45,5 +45,11 @@
 # now_time = datetime.datetime.now().strftime('%Y-%m-%d-%H-%M-%S')
 # print(now_time)
 
-dictA = None
-print(dictA is None)
+def Test():
+    a = 1
+    b = 2
+    c = 3
+    return [a, b, c]
+s = []
+s = Test()
+print(s)
