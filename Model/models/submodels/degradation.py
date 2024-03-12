@@ -41,12 +41,15 @@ class Degradation(BaseModel):
     def forward(self):
         return self.H
     
-    def set_H(self, H):
+    def set_H(self, H:Tensor):
+        """
+        id(self.H) != id(H)
+        """
         self.H = torch.nn.Parameter(H)
 
     def get_H(self):
         return self.H
-
+    
     def set_center(self, center):
         self.center = torch.nn.Parameter(center)
     

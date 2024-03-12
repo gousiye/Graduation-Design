@@ -16,6 +16,7 @@ class MyDataset(Dataset):
         self, 
         data_path: str, 
         data_name: str,
+        H_dim: int
     ):
         self.path = data_path
         self.filename = data_name
@@ -23,6 +24,7 @@ class MyDataset(Dataset):
         self.x = []
         self.y = []
         self.H = []
+        self.H_dim = H_dim
         self.view_dims = []
         try :
             dataset = scipy.io.loadmat(self.data_path)
@@ -46,6 +48,8 @@ class MyDataset(Dataset):
             
         self.view_dims = [self.x[i].shape[1] for i in range(len(self.x))]
         self.Normalize()
+        
+        self.H = torch.from_numpy(np.random.uniform(0, 1, [self.y.shape[0], self.H_dim])).float()
 
     def __len__(self):
         return self.y.shape[0]
@@ -63,8 +67,8 @@ class MyDataset(Dataset):
             scalar = MinMaxScaler((0,1))
             self.x[i] = scalar.fit_transform(self.x[i])
 
-    def BindH(self ,H: Tensor) -> None:
-        self.H = H
+    # def BindH(self ,H: torch.nn.Parameter) -> None:
+    #     self.H = H
 
     def GetLen(self) -> int:
         return self.y.shape[0]

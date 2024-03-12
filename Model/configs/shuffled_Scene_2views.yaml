@@ -22,7 +22,7 @@ exp_params:
   lr_pre: 1.0e-3
 
 train_params:
-  is_pre_train: True
+  is_pre_train: False
   is_pre_H: True
 
 pre_trainer_params:
@@ -33,7 +33,8 @@ pre_trainer_params:
 trainer_params:
   accelerator: 'gpu'
   devices: [0]
-  max_epochs: 3
+  total_max_epochs: 3
+  H_max_epochs: 3
 
 log_params:
   pre_log_path: "logs/pre_train_logs"

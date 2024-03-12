@@ -29,10 +29,11 @@ args = parser.parse_args()
 def ConstructModelAndDataset():
     assert len(test.encoder_code_list) == len(test.decoder_code_list) and \
             len(test.encoder_code_list) == len(test.degrade_code), '编码器,解码器,退化网络的视角不匹配'
-    myDataset = MyDataset(config['data_params']['data_path'], config['data_params']['data_name'])
-    data_len = myDataset.GetLen()
-    H = torch.from_numpy(np.random.uniform(0, 1, [data_len, config['model_params']['H_dim']])).float()
-    myDataset.BindH(H) 
+    myDataset = MyDataset(
+        config['data_params']['data_path'], 
+        config['data_params']['data_name'],
+        config['model_params']['H_dim']
+    )
     
     encoders_decoders = ClusterModel.GenerateEncoders(
         myDataset.GetViewDims(), 
@@ -64,7 +65,11 @@ if __name__ == '__main__':
     trainer = Trainer(
         logger = False,
         callbacks=[ModelCheckpoint(save_last=False, save_top_k=0, monitor=None)],
-        **config['trainer_params']
+        accelerator = config['trainer_params']['accelerator'],
+        devices = config['trainer_params']['devices'],
+        max_epochs = config['trainer_params']['total_max_epochs'],  
     )
+    print(cluster_dataset.dataset.H)
     trainer.fit(train, cluster_dataset)
+    print(cluster_dataset.dataset.H)
     # print(cluster_model.degradation.degrader[0])
