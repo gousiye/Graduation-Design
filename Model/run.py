@@ -4,7 +4,7 @@ from models import *    #导入的时候就执行了models/__init__.py
 from utils import MyDataset, ClusterDataset, FileTool
 import torch
 import test
-from train import Train
+from trains import Train
 from pytorch_lightning import Trainer
 from pytorch_lightning.callbacks import ModelCheckpoint
 
@@ -60,16 +60,5 @@ if __name__ == '__main__':
     print('--------------------start------------------------')
     print()
     cluster_model, cluster_dataset = ConstructModelAndDataset()
-    
     train = Train(cluster_model, cluster_dataset, config)
-    trainer = Trainer(
-        logger = False,
-        callbacks=[ModelCheckpoint(save_last=False, save_top_k=0, monitor=None)],
-        accelerator = config['trainer_params']['accelerator'],
-        devices = config['trainer_params']['devices'],
-        max_epochs = config['trainer_params']['total_max_epochs'],  
-    )
-    print(cluster_dataset.dataset.H)
-    trainer.fit(train, cluster_dataset)
-    print(cluster_dataset.dataset.H)
-    # print(cluster_model.degradation.degrader[0])
+    train.StartTrain()

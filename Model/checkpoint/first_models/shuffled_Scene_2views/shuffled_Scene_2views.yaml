@@ -1,7 +1,7 @@
 model_params:
   latent_encoder_dim: 128
   H_dim: 128
-  pre_model_path: checkpoint/pre_models
+  first_model_path: checkpoint/first_models
 data_params:
   data_name: shuffled_Scene_2views
   view_num: 2
@@ -9,20 +9,21 @@ data_params:
   batch_size: 32
   num_workers: 0
 exp_params:
-  lr_pre: 0.001
+  lr_ae: 0.001
+  lr_dg: 0.001
+  lr_h: 0.001
 device_params:
   accelerator: gpu
   devices:
   - 0
-pre_trainer_params:
-  pre_max_epochs: 3
 log_params:
-  pre_log_path: logs/pre_train_logs
-loss:
-  ae_pre_loss: 0.09884476661682129
-  view_loss:
-    view[0]: 8.056626319885254
-    view[1]: 5.880487442016602
+  first_log_path: logs/first_train_logs
+first_trainer_params:
+  first_total_max_epochs: 3
+  first_h_max_epochs: 3
+ae_loss: 0.06206607073545456
+dg_loss: 0.014359443448483944
+h_loss: 0.014621513895690441
 model_structure:
   encoder_decoders:
     '[0]':
@@ -41,3 +42,14 @@ model_structure:
       decoder:
       - Linear(in_features=128, out_features=59, bias=True)
       - ReLU()
+  degradation:
+    '[0]':
+    - Linear(in_features=128, out_features=256, bias=True)
+    - ReLU()
+    - Linear(in_features=256, out_features=128, bias=True)
+    - ReLU()
+    '[1]':
+    - Linear(in_features=128, out_features=256, bias=True)
+    - ReLU()
+    - Linear(in_features=256, out_features=128, bias=True)
+    - ReLU()

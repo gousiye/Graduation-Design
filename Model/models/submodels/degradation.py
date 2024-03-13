@@ -18,9 +18,9 @@ class Degradation(BaseModel):
         degrade_net_code:List[str]
     ):
         super(Degradation, self).__init__()
-        self.H_dim = H_dim
+        self.h_dim = H_dim
         self.latent_encoder_dim = latent_encoder_dim
-        self.H = torch.nn.Parameter(torch.FloatTensor(batch_size, H_dim))
+        self.h = torch.nn.Parameter(torch.FloatTensor(batch_size, H_dim))
         self.center = torch.nn.Parameter(torch.FloatTensor(cluster_num, latent_encoder_dim)) # k x d 
         self.alpha = 1
         self.degrader = torch.nn.ModuleList()
@@ -35,20 +35,20 @@ class Degradation(BaseModel):
         """
         view_h = [None] * len(self.degrader)
         for i in range(len(self.degrader)):
-            view_h[i] = self.degrader[i](self.H)
+            view_h[i] = self.degrader[i](self.h)
         return view_h
 
     def forward(self):
-        return self.H
+        return self.h
     
-    def set_H(self, H:Tensor):
+    def set_h(self, h:Tensor):
         """
         id(self.H) != id(H)
         """
-        self.H = torch.nn.Parameter(H)
+        self.h = torch.nn.Parameter(h)
 
-    def get_H(self):
-        return self.H
+    def get_h(self):
+        return self.h
     
     def set_center(self, center):
         self.center = torch.nn.Parameter(center)

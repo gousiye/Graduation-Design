@@ -45,11 +45,11 @@
 # now_time = datetime.datetime.now().strftime('%Y-%m-%d-%H-%M-%S')
 # print(now_time)
 
-def Test():
-    a = 1
-    b = 2
-    c = 3
-    return [a, b, c]
-s = []
-s = Test()
-print(s)
+import torch
+
+# 假设我们有一个Tensor x
+x = torch.tensor([1.0, 2.0, 3.0])
+
+# 将x中的所有元素设置为0
+x.fill_(0)
+print(x[0:3])

@@ -15,10 +15,11 @@ class ParameterTool:
     def PreDescription(config) -> dict:
         pre_description = {}
         field = {
-            'model_params': ['latent_encoder_dim','H_dim','save_pre_model', 'pre_model_path'],
+            'model_params': ['latent_encoder_dim','H_dim', 'pre_model_path'],
             'data_params':['data_name', 'view_num', 'cluster_num', 'batch_size', 'num_workers'],
             'exp_params':['lr_pre'],
-            'pre_trainer_params':['pre_accelerator', 'pre_devices', 'pre_max_epochs'],
+            'device_params':['accelerator', 'devices'],
+            'pre_trainer_params':['pre_max_epochs'],
             'log_params':['pre_log_path']
         }
         for para_aspect in field:
@@ -26,6 +27,26 @@ class ParameterTool:
             for index, param in enumerate(field[para_aspect]):
                pre_description[para_aspect][param] = config[para_aspect][field[para_aspect][index]]
         return pre_description
+
+    @staticmethod
+    def Description(config: dict, kind: str) -> dict:
+            description = {}
+            field = {
+                'model_params': ['latent_encoder_dim','H_dim', kind + '_model_path'],
+                'data_params':['data_name', 'view_num', 'cluster_num', 'batch_size', 'num_workers'],
+                'exp_params':['lr_ae', 'lr_dg', 'lr_h'],
+                'device_params':['accelerator', 'devices'], 
+                'log_params':[kind + '_log_path']
+            }
+            if kind == 'first':
+                field['first_trainer_params'] = ['first_total_max_epochs', 'first_h_max_epochs']
+                    
+            for para_aspect in field:
+                description[para_aspect] = {}
+                for index, param in enumerate(field[para_aspect]):
+                    description[para_aspect][param] = config[para_aspect][field[para_aspect][index]]
+            return description
+
 
     @staticmethod
     def __GetEncoderDescription(encoder_decoder:List[EncoderDecoder]) -> dict:
@@ -52,15 +73,27 @@ class ParameterTool:
                     encoder: Linear()
                              ReLU
                     decoder: Linear()
-            degradation: Linear()
+            degradation: 
+                [0]:
+                    Linear()
+                    ReLU()
+                    Linear()
+                [1]:
+                    
         """   
-        encoders_description = ParameterTool.__GetEncoderDescription(cluster_model.encoder_decoder)
-        descripition = {'model_structure':encoders_description}
-        return descripition
+        description = {}
+        inner_description = ParameterTool.__GetEncoderDescription(cluster_model.encoder_decoder)
+        inner_description['degradation'] = {}
+        for i in range(len(cluster_model.degradation.degrader)):
+            inner_description['degradation']['[{i}]'.format(i = i)] = []
+            for layer in cluster_model.degradation.degrader[i]:
+                inner_description['degradation']['[{i}]'.format(i = i)].append(str(layer))
+        description['model_structure'] = inner_description
+        return description
         
 
     @staticmethod
-    def GePretModelDescription(encoder_decoder:List[EncoderDecoder]) -> dict:
+    def GetPreModelDescription(encoder_decoder:List[EncoderDecoder]) -> dict:
         """
         预训练模型的版本
         model_structure:
@@ -73,6 +106,7 @@ class ParameterTool:
         encoders_description = ParameterTool.__GetEncoderDescription(encoder_decoder)
         descripition = {'model_structure':encoders_description}
         return descripition
+
         
     @staticmethod
     def GetPreLossDescription(ae_pre_loss: Tensor, view_loss:List[Tensor]):
@@ -86,3 +120,12 @@ class ParameterTool:
         loss_description['view_loss'] = view_description
         descripition['loss'] =loss_description
         return descripition
+    
+    @staticmethod
+    def InitVarFromDict(obj:object, config:dict)->None:
+        """
+        把config.yaml中的参数转为对象的成员
+        """
+        for param_aspect in config:
+            for parameter in config[param_aspect]:
+                setattr(obj, parameter, config[param_aspect][parameter])

@@ -62,21 +62,14 @@ encoder_code_list = ["""nn.Sequential(
     nn.Linear(self.feature_dim, self.latent_encoder_dim),
     nn.ReLU(),
     nn.Sigmoid()
-)""", """nn.Sequential(
-    nn.Linear(self.feature_dim, self.latent_encoder_dim),
-    nn.ReLU(),
-    nn.Sigmoid()
-)"""]
+)"""] * 2
 decoder_code_list = ["""nn.Sequential(
    nn.Linear(self.latent_encoder_dim, self.feature_dim),
    nn.ReLU(),
-)""" ,"""nn.Sequential(
-   nn.Linear(self.latent_encoder_dim, self.feature_dim),
-   nn.ReLU(),
-)"""]
+)"""] * 2
 degrade_code = ["""nn.Sequential(
-    nn.Linear(self.H_dim, 2 * self.latent_encoder_dim),
+    nn.Linear(self.h_dim, 2 * self.latent_encoder_dim),
     nn.ReLU(),
-    nn.Linear(2 * self.latent_encoder_dim, self.H_dim),
+    nn.Linear(2 * self.latent_encoder_dim, self.h_dim),
     nn.ReLU()
 )"""] * 2

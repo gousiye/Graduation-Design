@@ -5,6 +5,7 @@ from torch import Tensor
 from typing import List,  Union, Any, TypeVar, Tuple, Dict
 from .submodels import *
 from collections import defaultdict
+import numpy as np
 
 class ClusterModel(torch.nn.Module):
 
@@ -56,6 +57,7 @@ class ClusterModel(torch.nn.Module):
         super(ClusterModel, self).__init__()
         self.encoder_decoder = encoder_decoder #编码器，解码器
         self.degradation = degradation
+        self.H  = None
 
     def get_z_half_list(self, features:List[Tensor]) -> List[Tensor]:
         result = [None] * len(self.encoder_decoder)
@@ -68,6 +70,9 @@ class ClusterModel(torch.nn.Module):
         for i in range(len(self.encoder_decoder)):        
             result[i] = self.encoder_decoder[i](features[i])
         return result
+
+    def GenerateH(self, length, dim):
+        self.H = torch.from_numpy(np.random.uniform(0, 1, [length, dim])).float()
 
     def forward(self):
         # return self

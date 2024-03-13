@@ -23,7 +23,6 @@ class MyDataset(Dataset):
         self.data_path = os.path.join(self.path, self.filename) + '.mat'
         self.x = []
         self.y = []
-        self.H = []
         self.H_dim = H_dim
         self.view_dims = []
         try :
@@ -48,8 +47,6 @@ class MyDataset(Dataset):
             
         self.view_dims = [self.x[i].shape[1] for i in range(len(self.x))]
         self.Normalize()
-        
-        self.H = torch.from_numpy(np.random.uniform(0, 1, [self.y.shape[0], self.H_dim])).float()
 
     def __len__(self):
         return self.y.shape[0]
@@ -60,18 +57,12 @@ class MyDataset(Dataset):
             features_view = self.x[view_idx][idx][:]
             features_view = torch.tensor(features_view, dtype=torch.float32)
             features.append(features_view)
-        return features, self.y[idx], self.H[idx]
+        return features, self.y[idx]
 
     def Normalize(self):
         for i in range(len(self.x)):
             scalar = MinMaxScaler((0,1))
             self.x[i] = scalar.fit_transform(self.x[i])
-
-    # def BindH(self ,H: torch.nn.Parameter) -> None:
-    #     self.H = H
-
-    def GetLen(self) -> int:
-        return self.y.shape[0]
 
     # 获取每个视角特征的维度
     def GetViewDims(self)-> List[int]:
@@ -100,7 +91,10 @@ class ClusterDataset(LightningDataModule):
             self.dataset,
             batch_size=self.batch_size,
             num_workers=self.num_workers
-        )
+    )
+    def GetLen(self) -> int:
+        return self.dataset.y.shape[0]
+
 
 # 测试MyDataset是否能正常使用
 if __name__ == '__main__':
@@ -108,9 +102,6 @@ if __name__ == '__main__':
     print('-------start----------')
     myDataset = MyDataset('dataset', 'shuffled_Scene_2views')
     data_len = myDataset.GetLen()
-    H = torch.from_numpy(np.random.uniform(0, 1, [data_len, 10])).float()
-    myDataset.BindH(H)    
-    print(type(myDataset.H))
     data_loader = DataLoader(myDataset, batch_size = 32)
     for feature, cluster, h in data_loader:
         print(h[-1])
