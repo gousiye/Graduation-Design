@@ -44,11 +44,27 @@ class EncoderDecoder(BaseModel):
     def get_z_half(self, x: List[Tensor]) -> List[Tensor]:
         return self.encoders(x)
     
-    # 计算聚类分配软分布
-    def get_q(self, z):
-        xe = torch.unsqueeze(z, 1) - self.center
-        pass
+    def set_center(self, center: Tensor):
+        self.center = torch.nn.Parameter(center)
 
+    # 计算聚类分配软分布
+    def get_q(self, z: Tensor) -> Tensor:
+        """
+        学生T分布获得软聚类分配
+        """
+        # 广播原则 (batch_size, h_dim) - (cluster_num, h_dim) = (batch_size, cluster_num, h_dim)
+        xe = torch.unsqueeze(z, 1) - self.center 
+        # 计算z_half 到 center质心距离的平方, distance(batch_size, cluster_num)
+        distance = torch.sum(torch.mul(xe, xe), 2) / self.alpha
+        # 计算单个项
+        q = 1.0/(1.0 + distance)
+        q = q ** (self.alpha + 1.0) / 2.0
+        # 计算分母, denominator(batch_size)
+        denominator =  torch.sum(q, 1)
+        # 计算q
+        q = (q.t() /denominator).t()
+        # q:(batch_size, cluster_num), 表示属于第cluster_num类别的概率
+        return q
     
 
 

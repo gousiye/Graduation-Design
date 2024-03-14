@@ -3,9 +3,10 @@ model_params:
   H_dim: 128
   save_pre_model: True
   save_first_model: True
+  save_second_model: True
   pre_model_path: 'checkpoint/pre_models'
   first_model_path: 'checkpoint/first_models'
-
+  second_model_path: 'checkpoint/second_models'
 
 data_params:
   data_name: 'shuffled_Scene_2views'
@@ -22,8 +23,9 @@ exp_params:
   lr_pre: 1.0e-3
 
 train_params:
-  is_pre_train: True
-  is_first_train: True
+  is_pre_train: False
+  is_first_train: False
+  is_second_train: True
   is_pre_H: True
 
 device_params:
@@ -36,6 +38,10 @@ pre_trainer_params:
 first_trainer_params:
   first_total_max_epochs: 3
   first_h_max_epochs: 3
+
+second_trainer_params:
+  second_total_max_epochs: 3
+  second_h_max_epochs: 3
 
 log_params:
   pre_log_path: "logs/pre_train_logs"

@@ -70,6 +70,12 @@ class ClusterModel(torch.nn.Module):
         for i in range(len(self.encoder_decoder)):        
             result[i] = self.encoder_decoder[i](features[i])
         return result
+    
+    def get_ae_q_list(self, features:List[Tensor])->List[Tensor]:
+        result = [None] * len(self.encoder_decoder)
+        for i in range(len(self.encoder_decoder)):
+            result[i] = self.encoder_decoder[i].get_q(features[i]) 
+        return result
 
     def GenerateH(self, length, dim):
         self.H = torch.from_numpy(np.random.uniform(0, 1, [length, dim])).float()

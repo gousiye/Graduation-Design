@@ -1,5 +1,4 @@
 import pytorch_lightning as pl
-from pytorch_lightning.utilities.types import EPOCH_OUTPUT
 import torch
 from utils import ClusterDataset, FileTool, ParameterTool, Metric
 from typing import Tuple
@@ -34,6 +33,7 @@ class FirstTrain(pl.LightningModule):
         self.best_degradation_state = None 
         # self.cluster_model.state_dict()只有degradation相关的参数，encoder_decoder需要手动维护
         self.best_AeModel_state = [None] * len(self.cluster_model.encoder_decoder)
+        self.best_H = None
         self.best_epoch_idx = -1
         ParameterTool.InitVarFromDict(self, self.config)
 
@@ -50,6 +50,7 @@ class FirstTrain(pl.LightningModule):
         self.best_degradation_state = self.cluster_model.degradation.state_dict()
         for i in range(len(self.cluster_model.encoder_decoder)):
             self.best_AeModel_state[i] = self.cluster_model.encoder_decoder[i].state_dict()
+        self.best_H = torch.clone(self.cluster_model.H)
 
     # 更新cluster_dataset.dataset上的H，下一轮的epoch要从这读取
     def __update_H(self, batch_idx:int) -> None:
@@ -66,7 +67,7 @@ class FirstTrain(pl.LightningModule):
         self.cluster_model.H[start_idx: end_idx, ...] = new_batch_h.detach()
 
 
-    def train_ae(self, features:Tensor) -> Tensor:
+    def train_ae(self, features:List[Tensor]) -> Tensor:
         """
         训练AE网络
         """
@@ -83,7 +84,7 @@ class FirstTrain(pl.LightningModule):
         return ae_loss
 
 
-    def train_dg(self, features: Tensor) -> Tensor:
+    def train_dg(self, features: List[Tensor]) -> Tensor:
         """
         固定H训练degrade退化网络
         """
@@ -99,9 +100,9 @@ class FirstTrain(pl.LightningModule):
         opt_dg.step()
         return dg_loss
 
-    def train_h(self, features:Tensor) -> Tensor:
+    def train_h(self, features:List[Tensor]) -> Tensor:
         """
-        训练H
+        训练dg和h
         """
         # 打开H的梯度优化
         self.cluster_model.degradation.h.requires_grad_(True)
@@ -136,6 +137,7 @@ class FirstTrain(pl.LightningModule):
         self.__update_H(batch_idx)
         return {'loss':h_loss, 'ae_loss':ae_loss, 'dg_loss':dg_loss, 'h_loss':h_loss}
     
+    
 
     def training_epoch_end(self, outputs: List) -> None:
         print()
@@ -166,7 +168,7 @@ class FirstTrain(pl.LightningModule):
         self.cluster_model.degradation.h = torch.nn.Parameter(torch.FloatTensor(self.batch_size, self.H_dim))
         for i in range(len(self.cluster_model.encoder_decoder)):
             self.cluster_model.encoder_decoder[i].load_state_dict(self.best_AeModel_state[i])
-
+        self.cluster_model.H = self.best_H
 
     # 3个训练步骤中，值参数值
     def configure_optimizers(self) -> dict:
@@ -203,7 +205,7 @@ class FirstTrain(pl.LightningModule):
         check_folder_path = os.path.join(self.first_model_path, self.data_name)    
         check_model_path = os.path.join(check_folder_path, self.data_name) + '.pth.tar'
         print("------------------------")
-        print('\033[94m' + "已保存预训练AE模型到{path}".format(path = check_model_path) + '\033[0m')
+        print('\033[94m' + "已保存第一次训练AE模型到{path}".format(path = check_model_path) + '\033[0m')
         print("------------------------")
 
     def Load(self):

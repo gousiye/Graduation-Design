@@ -1,9 +1,17 @@
 from trains import PreTrain
 from trains import FirstTrain
+from trains import SecondTrain
 from models import ClusterModel
 from pytorch_lightning import Trainer
 from utils import ClusterDataset, FileTool, ParameterTool, Metric
 from pytorch_lightning.callbacks import ModelCheckpoint
+from torch.utils.data import DataLoader
+
+import warnings
+
+# 忽略特定类型的警告
+warnings.filterwarnings("ignore", category=UserWarning, message=".*reduction.*")
+
 
 class Train():
     def __init__(
@@ -17,6 +25,7 @@ class Train():
         self.config = config
         self.pre_train = None
         self.first_train = None
+        self.second_train = None
         self.cluster_model.GenerateH(self.cluster_dataset.GetLen(), self.config['model_params']['H_dim'])
         ParameterTool.InitVarFromDict(self, config)
         self.__toCuda()
@@ -24,10 +33,12 @@ class Train():
 
     def __toCuda(self):
         for iter in self.cluster_model.encoder_decoder:
-            iter.encoders.to(f'cuda:{self.devices[0]}')
-            iter.decoders.to(f'cuda:{self.devices[0]}')
-            iter.center.to(f'cuda:{self.devices[0]}')
-        pass 
+            iter.encoders = iter.encoders.to(f'cuda:{self.devices[0]}')
+            iter.decoders = iter.decoders.to(f'cuda:{self.devices[0]}')
+            # iter.center = iter.center.to(f'cuda:{self.devices[0]}')
+            pass
+        pass
+
     def __PreTrain(self):
         """
         训练或者读取, 得到预训练的模型, 初始化AE的参数
@@ -88,12 +99,30 @@ class Train():
 
         # print(self.cluster_dataset.dataset.H)
             # self.pre_train.Load(pre_config)
-
+    
+    def __SecondTrain(self):
+        self.second_train = SecondTrain(self.cluster_model, self.cluster_dataset, self.config)
+        
+        if self.is_second_train == True:
+            secondTrainer = Trainer(
+            logger = False,
+            callbacks = [ModelCheckpoint(save_last=False, save_top_k=0, monitor=None)],
+            accelerator = self.accelerator,
+            devices = self.devices,
+            max_epochs = self.second_total_max_epochs)
+            secondTrainer.fit(self.second_train, self.cluster_dataset)
+            
+            if self.save_second_model:
+                pass
+            else:
+                pass
+        else:
+            pass
+     
     def StartTrain(self):
         if self.is_first_train == True:
             self.__PreTrain()
         self.__FirstTrain()
-        pass
-
+        self.__SecondTrain()
 
     
