@@ -168,6 +168,7 @@ class SecondTrain(pl.LightningModule):
         final_y = torch.cat(batch_y)
         final_result = torch.argmax(final_q, 1)
         print(final_result.shape)
+        print(Metric.ACC(final_y.cpu().numpy(), final_result.cpu().numpy()))
 
     def configure_optimizers(self) -> dict:
         return None
