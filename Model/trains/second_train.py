@@ -26,7 +26,7 @@ class SecondTrain(pl.LightningModule):
         ParameterTool.InitVarFromDict(self, self.config)
         self.cluster_model = cluster_model
         self.cluster_dataset = cluster_dataset
-        self.random_seed = 70  # kMeans的随机种子，设置成固定的，有一定稳定性
+        self.random_seed = 100  # kMeans的随机种子，设置成固定的，有一定稳定性
         self.dataloader = DataLoader(
             dataset = self.cluster_dataset.dataset,
             batch_size = self.batch_size,
@@ -56,20 +56,20 @@ class SecondTrain(pl.LightningModule):
         centerH = None
         for features, labels in self.dataloader:
             labels = labels.to(f'cuda:{self.devices[0]}')
-            for i in range(view_num):
-                features[i] = features[i].to(f'cuda:{self.devices[0]}')
-                batch_features[i].append(self.cluster_model.encoder_decoder[i].get_z_half(features[i]))
+            for i in range(view_num):   
+                batch_features[i].append(self.cluster_model.encoder_decoder[i].get_z_half(features[i].to(f'cuda:{self.devices[0]}')))
         
         final_H = self.cluster_model.H
+        
         for i in range(view_num):
             final_features[i] = torch.cat(batch_features[i], 0)
 
         for i in range(view_num):
-            km = KMeans(n_clusters=self.cluster_num, random_state=self.random_seed)
+            km = KMeans(n_clusters=self.cluster_num, random_state=self.random_seed,n_init = 10)
             km.fit_predict(final_features[i].detach().cpu().numpy())
             centers[i] = torch.from_numpy(km.cluster_centers_).to(f'cuda:{self.devices[0]}')
 
-        km = KMeans(n_clusters=self.cluster_num, random_state=self.random_seed)
+        km = KMeans(n_clusters=self.cluster_num, random_state=self.random_seed,n_init = 10)
         km.fit_predict(final_H.detach().cpu().numpy())
         centerH = torch.from_numpy(km.cluster_centers_).to(f'cuda:{self.devices[0]}')
         return centers, centerH
@@ -79,13 +79,13 @@ class SecondTrain(pl.LightningModule):
         centers, centerH = self.__get_center(self.view_num)
         for i in range(len(self.cluster_model.encoder_decoder)):
             self.cluster_model.encoder_decoder[i].set_center(centers[i])
-        self.cluster_model.degradation.set_center(centerH.to(f'cuda:{self.devices[0]}'))
+        self.cluster_model.degradation.set_center(centerH)
 
     def train_ae(self, features, h):
         ae_params = []
         for iter in self.cluster_model.encoder_decoder:
             ae_params.extend(iter.parameters())
-        opt_ae = optim.Adam(ae_params, lr = self.lr_ae)
+        opt_ae = optim.Adam(ae_params, lr = self.second_lr_ae)
         opt_ae.zero_grad()
 
         q_h = self.cluster_model.degradation.get_q(h)
@@ -104,7 +104,7 @@ class SecondTrain(pl.LightningModule):
         
         dec_loss = tmp_dec_loss
         ae_loss = ae_recon_loss + ae_degrade_loss + dec_loss
-        self.manual_backward(ae_loss)
+        ae_loss.backward()
         opt_ae.step()
         return ae_loss
 
@@ -116,24 +116,22 @@ class SecondTrain(pl.LightningModule):
         for v in self.cluster_model.degradation.parameters():
             v.requires_grad = True
 
-        opt_h = optim.Adam(params=self.cluster_model.degradation.parameters(), lr=self.lr_h)
-        h_loss_avg = 0
+        opt_h = optim.Adam(params=self.cluster_model.degradation.parameters(), lr=self.second_lr_h)
+        h_loss_total = 0
         for k in range(self.second_h_max_epochs):
             opt_h.zero_grad()
             q_h = self.cluster_model.degradation.get_q(h)
             p_h = self.cluster_model.degradation.get_p(q_h) 
     
             z_half_list  = self.cluster_model.get_z_half_list(features)
-            q_ae_list = self.cluster_model.get_ae_q_list(z_half_list)
             view_h_list = self.cluster_model.degradation.get_view_h_list()
             h_recon_loss = Metric.GetAverageMSE(z_half_list, view_h_list)
             h_dec_loss = nn.KLDivLoss()(p_h.log(), q_h)
             h_loss = h_recon_loss + h_dec_loss
-            h_loss_avg += h_loss
-            self.manual_backward(h_loss)
+            h_loss_total += h_loss
+            h_loss.backward()
             opt_h.step()
-        h_loss_avg /= self.second_h_max_epochs
-        return h_loss_avg
+        return h_loss_total
 
     def training_step(self, batch: Tuple, batch_idx):
         features, labels = batch
@@ -152,13 +150,11 @@ class SecondTrain(pl.LightningModule):
     def training_epoch_end(self, outputs: List) -> None:
         print()
         current_epoch = self.current_epoch
-        ae_mean_loss = torch.stack([x['ae_loss'] for x in outputs]).mean()
-        h_mean_loss = torch.stack([x['h_loss'] for x in outputs]).mean()
-        output = "First_epoch: {:.0f}, ae_loss_mean: {:.4f}, h_mean_loss:{:.4f}.". \
-            format(current_epoch, ae_mean_loss, h_mean_loss)
+        ae_loss = torch.stack([x['ae_loss'] for x in outputs]).sum()
+        h_loss = torch.stack([x['h_loss'] for x in outputs]).sum()
+        output = "First_epoch: {:.0f}, ae_loss: {:.4f}, h_loss:{:.4f}.". \
+            format(current_epoch, ae_loss, h_loss)
         print(output)
-
-    def on_train_end(self):
         print()
         batch_y = []
         final_h = self.cluster_model.H.to(f'cuda:{self.devices[0]}')
@@ -167,8 +163,12 @@ class SecondTrain(pl.LightningModule):
             batch_y.append(labels)
         final_y = torch.cat(batch_y)
         final_result = torch.argmax(final_q, 1)
-        print(final_result.shape)
         print(Metric.ACC(final_y.cpu().numpy(), final_result.cpu().numpy()))
+
+    def on_train_end(self):
+        pass
+        # print('----------------------------------------------------')
+
 
     def configure_optimizers(self) -> dict:
         return None

@@ -6,12 +6,8 @@ data_params:
   data_name: shuffled_Scene_2views
   view_num: 2
   cluster_num: 15
-  batch_size: 32
+  batch_size: 400
   num_workers: 0
-exp_params:
-  lr_ae: 0.001
-  lr_dg: 0.001
-  lr_h: 0.001
 device_params:
   accelerator: gpu
   devices:
@@ -19,29 +15,44 @@ device_params:
 log_params:
   first_log_path: logs/first_train_logs
 first_trainer_params:
-  first_total_max_epochs: 3
-  first_h_max_epochs: 3
-ae_loss: 0.06206607073545456
-dg_loss: 0.014359443448483944
-h_loss: 0.014621513895690441
+  first_total_max_epochs: 15
+  first_h_max_epochs: 20
+  first_lr_ae: 0.001
+  first_lr_dg: 0.001
+  first_lr_h: 0.001
+ae_loss: 0.004435314331203699
+dg_loss: 0.0007570942980237305
+h_loss: 0.0005185495829209685
 model_structure:
   encoder_decoders:
     '[0]':
       encoder:
-      - Linear(in_features=20, out_features=128, bias=True)
+      - Linear(in_features=20, out_features=1024, bias=True)
       - ReLU()
-      - Sigmoid()
+      - Linear(in_features=1024, out_features=1024, bias=True)
+      - ReLU()
+      - Linear(in_features=1024, out_features=128, bias=True)
       decoder:
-      - Linear(in_features=128, out_features=20, bias=True)
+      - Linear(in_features=128, out_features=1024, bias=True)
       - ReLU()
+      - Linear(in_features=1024, out_features=1024, bias=True)
+      - ReLU()
+      - Linear(in_features=1024, out_features=20, bias=True)
+      - Sigmoid()
     '[1]':
       encoder:
-      - Linear(in_features=59, out_features=128, bias=True)
+      - Linear(in_features=59, out_features=1024, bias=True)
       - ReLU()
-      - Sigmoid()
+      - Linear(in_features=1024, out_features=1024, bias=True)
+      - ReLU()
+      - Linear(in_features=1024, out_features=128, bias=True)
       decoder:
-      - Linear(in_features=128, out_features=59, bias=True)
+      - Linear(in_features=128, out_features=1024, bias=True)
       - ReLU()
+      - Linear(in_features=1024, out_features=1024, bias=True)
+      - ReLU()
+      - Linear(in_features=1024, out_features=59, bias=True)
+      - Sigmoid()
   degradation:
     '[0]':
     - Linear(in_features=128, out_features=256, bias=True)

@@ -2,7 +2,7 @@ from torch import Tensor
 import torch.nn as nn
 from typing import List
 import numpy as np
-
+from scipy.optimize import linear_sum_assignment as linear_assignment
 
 class Metric:
     """"
@@ -25,14 +25,22 @@ class Metric:
         """
         计算ACC
         """
-        assert y_true.shape == y_pred.shape, '预测数据和真实数据维度不符'
+        # assert y_true.shape == y_pred.shape, '预测数据和真实数据维度不符'
+        # y_true = y_true.astype(np.int64)
+        # dim = max(y_true.max(), y_pred.max()) + 1
+        # matric = np.zeros((dim, dim), dtype=np.int64)
+        # for i in range(y_true.shape[0]):
+        #     matric[y_pred[i]][y_true[i]] += 1   # 相当于混淆矩阵
+        # # return matric
+        # 
+        # row_index, col_index = linear_assignment(matric.max() - matric)
+        # return sum([matric[i][j] for i, j in zip(row_index, col_index)]) * 1.0 / y_pred.size
+
         y_true = y_true.astype(np.int64)
-        dim = max(y_true.max(), y_pred.max()) + 1
-        matric = np.zeros((dim, dim), dtype=np.int64)
-        for i in range(y_true.shape[0]):
-            matric[y_pred[i]][y_true[i]] += 1   # 相当于混淆矩阵
-        from scipy.optimize import linear_sum_assignment as linear_assignment
-        row_index, col_index = linear_assignment(matric.max() - matric)
-        return sum([matric[i][j] for i, j in zip(row_index, col_index)]) * 1.0 / y_pred.size
-
-
+        assert y_pred.size == y_true.size
+        D = max(y_pred.max(), y_true.max()) + 1
+        w = np.zeros((D, D), dtype=np.int64)
+        for i in range(y_pred.size):
+            w[y_pred[i], y_true[i]] += 1
+        row_index, col_index = linear_assignment(w.max() - w)
+        return sum([w[i, j] for i, j in zip(row_index, col_index)]) * 1.0 / y_pred.size

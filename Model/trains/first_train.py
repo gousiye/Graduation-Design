@@ -7,12 +7,9 @@ from models import ClusterModel
 from typing import List, Optional, Sequence, Union, Any, Callable, Dict
 from torch import Tensor
 from torch import optim
-from trains import PreTrain
-from pytorch_lightning import Trainer
 import os
-from pytorch_lightning.callbacks import ModelCheckpoint
 import datetime
-
+from torch.utils.data import DataLoader
 class FirstTrain(pl.LightningModule):
     def __init__(
         self, 
@@ -25,17 +22,17 @@ class FirstTrain(pl.LightningModule):
         self.cluster_model = cluster_model
         self.cluster_dataset = cluster_dataset
         self.config = config
-
-        self.min_h_loss = float('inf')
-        self.ae_loss = float('inf')
-        self.dg_loss  = float('inf')
-
-        self.best_degradation_state = None 
-        # self.cluster_model.state_dict()只有degradation相关的参数，encoder_decoder需要手动维护
-        self.best_AeModel_state = [None] * len(self.cluster_model.encoder_decoder)
-        self.best_H = None
         self.best_epoch_idx = -1
+        self.ae_loss = float('inf')
+        self.dg_loss = float('inf')
+        self.h_loss = float('inf')
         ParameterTool.InitVarFromDict(self, self.config)
+
+        self.dataloader = DataLoader(
+            dataset = self.cluster_dataset.dataset,
+            batch_size = self.batch_size,
+            num_workers = self.num_workers
+        )
 
     def forward(self):
         return self.cluster_model
@@ -44,13 +41,7 @@ class FirstTrain(pl.LightningModule):
         print()
         print("----------------------训练第一步开始------------------------")
         print()
-    
-    # 保存更好的模型
-    def __SaveBetterState(self):
-        self.best_degradation_state = self.cluster_model.degradation.state_dict()
-        for i in range(len(self.cluster_model.encoder_decoder)):
-            self.best_AeModel_state[i] = self.cluster_model.encoder_decoder[i].state_dict()
-        self.best_H = torch.clone(self.cluster_model.H)
+
 
     # 更新cluster_dataset.dataset上的H，下一轮的epoch要从这读取
     def __update_H(self, batch_idx:int) -> None:
@@ -71,7 +62,10 @@ class FirstTrain(pl.LightningModule):
         """
         训练AE网络
         """
-        opt_ae = self.optimizers()[0]
+        ae_params = []
+        for iter in self.cluster_model.encoder_decoder:
+            ae_params.extend(iter.parameters())
+        opt_ae = optim.Adam(params = ae_params, lr = self.first_lr_ae)
         opt_ae.zero_grad()
         z_half_list =  self.cluster_model.get_z_half_list(features)
         ae_recon_list = self.cluster_model.get_ae_recon_list(features)
@@ -79,7 +73,7 @@ class FirstTrain(pl.LightningModule):
         ae_recon_loss = Metric.GetAverageMSE(features, ae_recon_list)
         ae_degrade_loss = Metric.GetAverageMSE(view_h_list, z_half_list)
         ae_loss = ae_recon_loss + ae_degrade_loss
-        self.manual_backward(ae_loss)
+        ae_loss.backward()
         opt_ae.step()
         return ae_loss
 
@@ -90,13 +84,13 @@ class FirstTrain(pl.LightningModule):
         """
         # 关闭H的梯度优化
         self.cluster_model.degradation.h.requires_grad_(False)
-        opt_dg = self.optimizers()[1]
+        opt_dg = (optim.Adam(self.cluster_model.degradation.parameters(), lr = self.first_lr_dg))
         opt_dg.zero_grad()
         # train_ae更新ae网络后才调用，需要重新计算
         z_half_list =  self.cluster_model.get_z_half_list(features)
         view_h_list = self.cluster_model.degradation.get_view_h_list()
         dg_loss = Metric.GetAverageMSE(z_half_list, view_h_list)
-        self.manual_backward(dg_loss)
+        dg_loss.backward()
         opt_dg.step()
         return dg_loss
 
@@ -106,7 +100,7 @@ class FirstTrain(pl.LightningModule):
         """
         # 打开H的梯度优化
         self.cluster_model.degradation.h.requires_grad_(True)
-        opt_h = (optim.Adam(self.cluster_model.degradation.parameters(), lr = self.lr_h))
+        opt_h = (optim.Adam(self.cluster_model.degradation.parameters(), lr = self.first_lr_h))
         h_loss_avg = 0
         # 单独训练H
         for i in range(self.first_h_max_epochs):
@@ -116,7 +110,7 @@ class FirstTrain(pl.LightningModule):
             z_half_list =  self.cluster_model.get_z_half_list(features)
             h_loss = Metric.GetAverageMSE(z_half_list, view_h_list)
             h_loss_avg += h_loss
-            self.manual_backward(h_loss)
+            h_loss.backward()
             opt_h.step()
         h_loss_avg /= self.first_h_max_epochs
         return h_loss_avg 
@@ -131,6 +125,9 @@ class FirstTrain(pl.LightningModule):
         ae_loss = self.train_ae(features)
         dg_loss = self.train_dg(features)
         h_loss = self.train_h(features)
+        self.ae_loss = ae_loss
+        self.dg_loss = dg_loss
+        self.h_loss = h_loss
         self.log('ae_loss', ae_loss)
         self.log('dg_loss', dg_loss)
         self.log('h_loss', h_loss)
@@ -143,48 +140,43 @@ class FirstTrain(pl.LightningModule):
         print()
         
         current_epoch = self.current_epoch
-        ae_mean_loss = torch.stack([x['ae_loss'] for x in outputs]).mean()
-        dg_mean_loss = torch.stack([x['dg_loss'] for x in outputs]).mean()
-        h_mean_loss = torch.stack([x['h_loss'] for x in outputs]).mean()
-        output = "First_epoch: {:.0f}, ae_loss_mean: {:.4f}, dg_mean_loss:{:.4f}, h_mean_loss:{:.4f}.". \
-            format(current_epoch, ae_mean_loss, dg_mean_loss, h_mean_loss)
+        ae_loss = torch.stack([x['ae_loss'] for x in outputs]).sum()
+        dg_loss = torch.stack([x['dg_loss'] for x in outputs]).sum()
+        h_loss = torch.stack([x['h_loss'] for x in outputs]).sum()
+        output = "First_epoch: {:.0f}, ae_loss: {:.4f}, dg_loss:{:.4f}, h_loss:{:.4f}.". \
+            format(current_epoch, ae_loss, dg_loss, h_loss)
         print(output)
 
-        # 保存最h_mean_loss最小的模型
-        if h_mean_loss < self.min_h_loss:
-            self.best_epoch_idx = current_epoch
-            self.min_h_loss = h_mean_loss
-            self.ae_loss = ae_mean_loss
-            self.dg_loss = dg_mean_loss
-            self.__SaveBetterState()
+
+        # 同时有ae_loss, h_loss, loss 也与H的好坏没有必然关系，因此这里保存最后一个模型 
             
     def on_train_end(self):
+        
         print()
-        print("最好的第一步训练模型在第{i}个epoch, 其h_loss_mean为{loss:.4f}".format(i = self.best_epoch_idx, loss = self.min_h_loss))
         print("----------------------训练第一步结束---------------------")
         print()
-        self.cluster_model.degradation.load_state_dict(self.best_degradation_state)
         # degradateion.h已经没有用了，这样只是便于存储和读取
         self.cluster_model.degradation.h = torch.nn.Parameter(torch.FloatTensor(self.batch_size, self.H_dim))
-        for i in range(len(self.cluster_model.encoder_decoder)):
-            self.cluster_model.encoder_decoder[i].load_state_dict(self.best_AeModel_state[i])
-        self.cluster_model.H = self.best_H
+
 
     # 3个训练步骤中，值参数值
     def configure_optimizers(self) -> dict:
-        optims = []
-        ae_params = []
-        for iter in self.cluster_model.encoder_decoder:
-            ae_params.extend(iter.parameters())
-        # 退化网络除了H的所有参数
-        dg_params = [p for name, p in self.cluster_model.degradation.named_parameters() if 'H' not in name]
+        return None
+        # 多个优化器可能会影响彼此，所以每个epoch中的优化器都应该重新生成
+    
+        # optims = []
+        # ae_params = []
+        # for iter in self.cluster_model.encoder_decoder:
+        #     ae_params.extend(iter.parameters())
+        # # 退化网络除了H的所有参数
+        # #dg_params = [p for name, p in self.cluster_model.degradation.named_parameters() if 'H' not in name]
        
-        optims.append(optim.Adam(ae_params, lr = self.lr_ae))
-        optims.append(optim.Adam(dg_params, lr = self.lr_dg))
+        # optims.append(optim.Adam(ae_params, lr = self.lr_ae))
+        # optims.append(optim.Adam(self.cluster_model.degradation.parameters(), lr = self.lr_dg))
 
         # H的引用改变了，优化器中的H和新的H不指向同一块地方，优化器无法更改H
         # optims.append(optim.Adam(self.cluster_model.degradation.parameters(), lr = self.lr_h))
-        return optims
+        # return optims
 
 
     def Save(self):
@@ -198,7 +190,7 @@ class FirstTrain(pl.LightningModule):
         path['data_name'] = self.data_name
         loss['ae_loss'] = self.ae_loss.item()
         loss['dg_loss'] = self.dg_loss.item()
-        loss['h_loss'] = self.min_h_loss.item()
+        loss['h_loss'] = self.h_loss.item()
         description = ParameterTool.Description(self.config, 'first')
         FileTool.SaveModelAndLog(self.cluster_model, description, path, loss)
 
@@ -207,6 +199,7 @@ class FirstTrain(pl.LightningModule):
         print("------------------------")
         print('\033[94m' + "已保存第一次训练AE模型到{path}".format(path = check_model_path) + '\033[0m')
         print("------------------------")
+
 
     def Load(self):
         """

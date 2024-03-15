@@ -10,6 +10,9 @@ from torch import optim
 import datetime
 import os
 from utils import ClusterDataset, FileTool, ParameterTool
+from torch.utils.data import DataLoader
+from sklearn.cluster import KMeans
+from utils import ClusterDataset, FileTool, ParameterTool, Metric
 
 class PreTrain(pl.LightningModule):
 
@@ -22,6 +25,7 @@ class PreTrain(pl.LightningModule):
     ) -> None:
         
         super(PreTrain, self).__init__()
+
         self.encoder_decoder = encoder_decoder
         self.lr = lr
         self.cluster_num = cluster_num
@@ -31,6 +35,7 @@ class PreTrain(pl.LightningModule):
         self.best_preModel_state = [None] * len(self.encoder_decoder)
         self.best_epoch_idx = -1
         self.config = {}
+
 
     def __SaveBetterModel(self):
         for i in range(len(self.encoder_decoder)):
@@ -44,16 +49,21 @@ class PreTrain(pl.LightningModule):
 
     # pytorch_lightning 只要在training_step中正确计算，优化器参数列表包含就可以。这样也是可以的
     def forward(self, features:List[Tensor]):
+        pass
+
+
+    def training_step(self, batch:Tuple, batch_idx:int):
+        ae_params = []
+        for iter in self.encoder_decoder:
+            ae_params.extend(iter.parameters())
+        opt_ae = optim.Adam(ae_params, lr = self.lr)
+        features, _ = batch
         ae_pre_loss_tmp = 0
         for i in range(len(features)):
             tmpMSE = nn.MSELoss()(features[i], self.encoder_decoder[i](features[i]))
             self.loss[i] += tmpMSE
             ae_pre_loss_tmp += tmpMSE
-        return ae_pre_loss_tmp
-
-    def training_step(self, batch:Tuple, batch_idx:int):
-        features, _ = batch
-        ae_pre_loss = self.forward(features)
+        ae_pre_loss = ae_pre_loss_tmp
         self.log('ae_pre_loss', ae_pre_loss)
         return {'loss':ae_pre_loss}
     
@@ -63,16 +73,14 @@ class PreTrain(pl.LightningModule):
 
     def training_epoch_end(self, outputs: List) -> None:
         current_epoch = self.current_epoch
-        # tensor.mean 默认会计算全局平均
-        ae_pre_loss = torch.stack([x['loss'] for x in outputs]).mean()
+        # tensor.sum 默认会计算全局和
+        ae_pre_loss = torch.stack([x['loss'] for x in outputs]).sum()
         print()
-        output = "Pre_epoch: {:.0f}, Mean: ae_pre_loss: {:.4f}.  Sum: ".format(current_epoch, ae_pre_loss)
+        output = "Pre_epoch: {:.0f}, ae_pre_loss: {:.4f}: ".format(current_epoch, ae_pre_loss)
         for i in range(len(self.loss)):
-            if i != len(self.loss) - 1:
-                output += "loss{:.0f} = {:.4f}, ".format(i , self.loss[i])
-            else:
-                 output += "loss{:.0f} = {:.4f}.".format(i , self.loss[i])
+                output += ", loss{:.0f} = {:.4f}".format(i , self.loss[i])
         print(output)
+        
 
         # 保存最优的模型
         if self.best_epoch_idx == -1 or ae_pre_loss < self.min_loss:
@@ -90,11 +98,11 @@ class PreTrain(pl.LightningModule):
             pass
 
     def configure_optimizers(self):
-        params = []
+        ae_params = []
         for iter in self.encoder_decoder:
-            params.extend(iter.parameters())
-        return optim.Adam(params, lr = self.lr)
-
+            ae_params.extend(iter.parameters())
+        opt_ae_pre = optim.Adam(params=ae_params, lr = self.lr)
+        return opt_ae_pre
     
     def Save(self, config:dict) -> None:
         """
@@ -170,6 +178,3 @@ class PreTrain(pl.LightningModule):
             check_param_path,
             description
         )
-
-if __name__ == '__main__':
-    pass

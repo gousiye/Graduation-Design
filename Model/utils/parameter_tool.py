@@ -17,9 +17,8 @@ class ParameterTool:
         field = {
             'model_params': ['latent_encoder_dim','H_dim', 'pre_model_path'],
             'data_params':['data_name', 'view_num', 'cluster_num', 'batch_size', 'num_workers'],
-            'exp_params':['lr_pre'],
             'device_params':['accelerator', 'devices'],
-            'pre_trainer_params':['pre_max_epochs'],
+            'pre_trainer_params':['pre_max_epochs', 'pre_lr_ae'],
             'log_params':['pre_log_path']
         }
         for para_aspect in field:
@@ -34,12 +33,20 @@ class ParameterTool:
             field = {
                 'model_params': ['latent_encoder_dim','H_dim', kind + '_model_path'],
                 'data_params':['data_name', 'view_num', 'cluster_num', 'batch_size', 'num_workers'],
-                'exp_params':['lr_ae', 'lr_dg', 'lr_h'],
                 'device_params':['accelerator', 'devices'], 
                 'log_params':[kind + '_log_path']
             }
             if kind == 'first':
-                field['first_trainer_params'] = ['first_total_max_epochs', 'first_h_max_epochs']
+                field['first_trainer_params'] = [
+                    'first_total_max_epochs', 'first_h_max_epochs', 
+                    'first_lr_ae', 'first_lr_dg', 'first_lr_h'
+                ]
+                
+            if kind == 'second':
+                field['second_trainer_params'] = [
+                    'second_total_max_epochs', 'second_h_max_epochs', 
+                    'second_lr_ae', 'second_lr_dg', 'second_lr_h'
+                ]         
                     
             for para_aspect in field:
                 description[para_aspect] = {}

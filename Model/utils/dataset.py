@@ -90,7 +90,8 @@ class ClusterDataset(LightningDataModule):
         return DataLoader(
             self.dataset,
             batch_size=self.batch_size,
-            num_workers=self.num_workers
+            num_workers=self.num_workers,
+            shuffle=False,
     )
     def GetLen(self) -> int:
         return self.dataset.y.shape[0]
