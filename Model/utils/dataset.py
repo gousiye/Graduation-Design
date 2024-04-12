@@ -76,7 +76,7 @@ class MyDataset(Dataset):
 class ClusterDataset(LightningDataModule):
     def __init__(
         self, 
-        dataset: Dataset,
+        dataset: MyDataset,
         params: dict,
     ) -> None:
         super().__init__()

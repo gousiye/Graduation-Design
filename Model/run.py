@@ -1,12 +1,13 @@
 import argparse
 import numpy as np
 from models import *    #导入的时候就执行了models/__init__.py
-from utils import MyDataset, ClusterDataset, FileTool
+from utils import MyDataset, ClusterDataset, FileTool, Cluster
 import torch
 import test
 from trains import Train
 from pytorch_lightning import Trainer
 from pytorch_lightning.callbacks import ModelCheckpoint
+
 
 parser = argparse.ArgumentParser(description='Deep Cluster Model')
 
@@ -62,3 +63,5 @@ if __name__ == '__main__':
     cluster_model, cluster_dataset = ConstructModelAndDataset()
     train = Train(cluster_model, cluster_dataset, config)
     train.StartTrain()
+    cluster = Cluster(cluster_model, cluster_dataset.dataset.y)
+    cluster.ConductCluster()

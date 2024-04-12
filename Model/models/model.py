@@ -58,6 +58,9 @@ class ClusterModel(torch.nn.Module):
         self.encoder_decoder = encoder_decoder #编码器，解码器
         self.degradation = degradation
         self.H  = None
+        self.cluster_num = self.degradation.cluster_num  
+        for iter in self.encoder_decoder:
+            assert self.cluster_num == iter.cluster_num, "编码器和退化网络的类别数量不一致"
 
     def get_z_half_list(self, features:List[Tensor]) -> List[Tensor]:
         result = [None] * len(self.encoder_decoder)
@@ -84,6 +87,21 @@ class ClusterModel(torch.nn.Module):
         # return self
         pass
 
+    # def __GetSoftClusterMetric(self):
+    #     """
+    #     根据软聚类分配直接得到结果, 选择概率最大的那个类别
+    #     """       
+    #     batch_y = []
+    #     final_h = self.cluster_model.H.to(f'cuda:{self.devices[0]}')
+    #     final_q = self.cluster_model.degradation.get_q(final_h) 
+    #     for _, labels in self.dataloader:
+    #         batch_y.append(labels)
+    #     final_y = torch.cat(batch_y).cpu().numpy()
+    #     final_result = torch.argmax(final_q, 1).cpu().numpy()
+    #     acc, nmi, ri, f_score = Metric.GetMetrics(final_y, final_result)
+    #     return acc, nmi, ri, f_score
+
+    
 
 
 if __name__ == "__main__":

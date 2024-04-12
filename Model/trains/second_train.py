@@ -73,7 +73,11 @@ class SecondTrain(pl.LightningModule):
         km.fit_predict(final_H.detach().cpu().numpy())
         centerH = torch.from_numpy(km.cluster_centers_).to(f'cuda:{self.devices[0]}')
         return centers, centerH
-
+    
+    def on_train_start(self) -> None:
+        print()
+        print("----------------------训练第二步开始------------------------")
+        print()
 
     def on_train_epoch_start(self):
         centers, centerH = self.__get_center(self.view_num)
@@ -141,6 +145,8 @@ class SecondTrain(pl.LightningModule):
         self.cluster_model.degradation.set_h(h)
         ae_loss = self.train_ae(features, h)
         h_loss = self.train_h(features, h)
+        self.ae_loss = ae_loss
+        self.h_loss = h_loss
         self.log('ae_loss', ae_loss)
         self.log('h_loss', h_loss)
         self.__update_H(batch_idx)
@@ -152,23 +158,63 @@ class SecondTrain(pl.LightningModule):
         current_epoch = self.current_epoch
         ae_loss = torch.stack([x['ae_loss'] for x in outputs]).sum()
         h_loss = torch.stack([x['h_loss'] for x in outputs]).sum()
-        output = "First_epoch: {:.0f}, ae_loss: {:.4f}, h_loss:{:.4f}.". \
+        output = "Second_epoch: {:.0f}, ae_loss: {:.4f}, h_loss:{:.4f}.". \
             format(current_epoch, ae_loss, h_loss)
         print(output)
-        print()
-        batch_y = []
-        final_h = self.cluster_model.H.to(f'cuda:{self.devices[0]}')
-        final_q = self.cluster_model.degradation.get_q(final_h) 
-        for _, labels in self.dataloader:
-            batch_y.append(labels)
-        final_y = torch.cat(batch_y)
-        final_result = torch.argmax(final_q, 1)
-        print(Metric.ACC(final_y.cpu().numpy(), final_result.cpu().numpy()))
+        # 为了读取的时候时候维度一致，实际的训练中会先设置h，然后再训练
+        self.cluster_model.degradation.set_h(torch.FloatTensor(self.batch_size, self.H_dim))
 
     def on_train_end(self):
-        pass
-        # print('----------------------------------------------------')
+        print()
+        print("----------------------训练第二步结束---------------------")
+        print()
+        # acc, nmi, ri, f_score = self.__GetSoftClusterMetric()
+        # output = "根据H的软分配聚类结果如下: "
+        # output += "ACC = {:.4f}, NI = {:.4f}, RI = {:.4f}, F_score = {:.4f}".format(acc, nmi, ri, f_score)
+        # print(output)
 
 
+    # ae中的center， dg中的h 每次都会改变，每个epoch都需要重新设置优化器
     def configure_optimizers(self) -> dict:
         return None
+
+
+    def Save(self):
+        """
+        存储模型，日志
+        """
+        path = {}
+        loss = {}
+        path['model_path'] = self.second_model_path
+        path['log_path'] = self.second_log_path
+        path['data_name'] = self.data_name
+        loss['ae_loss'] = self.ae_loss.item()
+        loss['h_loss'] = self.h_loss.item()
+        description = ParameterTool.Description(self.config, 'second')
+        FileTool.SaveModelAndLog(self.cluster_model, description, path, loss)
+
+        check_folder_path = os.path.join(self.second_model_path, self.data_name)    
+        check_model_path = os.path.join(check_folder_path, self.data_name) + '.pth.tar'
+        print("------------------------")
+        print('\033[94m' + "已保存第二次训练模型到{path}".format(path = check_model_path) + '\033[0m')
+        print("------------------------")
+
+
+    def Load(self):
+        """
+        读取模型, 生成相关日志
+        """
+        path = {}
+        path['model_path'] = self.second_model_path
+        path['log_path'] = self.second_log_path
+        path['data_name'] = self.data_name
+        description = ParameterTool.Description(self.config, 'first')
+        FileTool.LoadAndLog(self.cluster_model, description, path)
+
+        check_folder_path = os.path.join(self.first_model_path, self.data_name)    
+        check_model_path = os.path.join(check_folder_path, self.data_name) + '.pth.tar'
+        print("------------------------")
+        print('\033[94m' + "已从{path}读取第二次训练模型".format(path = check_model_path) + '\033[0m')
+        print("------------------------")
+
+

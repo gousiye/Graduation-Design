@@ -20,7 +20,7 @@ class EncoderDecoder(BaseModel):
         decoder_code:str
     )->None:
         super(EncoderDecoder, self).__init__()
-
+        self.cluster_num = cluster_num
         self.feature_dim = feature_dim
         self.latent_encoder_dim = latent_encoder_dim
         self.encoder_code = "self.encoders = " + encoder_code
@@ -64,6 +64,7 @@ class EncoderDecoder(BaseModel):
         # 计算q
         q = (q.t() /denominator).t()
         # q:(batch_size, cluster_num), 表示属于第cluster_num类别的概率
+        
         return q
     
 

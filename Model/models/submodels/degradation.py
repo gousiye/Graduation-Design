@@ -18,6 +18,7 @@ class Degradation(BaseModel):
         degrade_net_code:List[str]
     ):
         super(Degradation, self).__init__()
+        self.cluster_num = cluster_num
         self.h_dim = H_dim
         self.latent_encoder_dim = latent_encoder_dim
         self.h = torch.nn.Parameter(torch.FloatTensor(batch_size, H_dim))

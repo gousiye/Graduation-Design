@@ -23,9 +23,9 @@ exp_params:
   lr_pre: 1.0e-3
 
 train_params:
-  is_pre_train: True
-  is_first_train: True
-  is_second_train: True
+  is_pre_train: False
+  is_first_train: False
+  is_second_train: False
 
 device_params:
   accelerator: 'gpu'
@@ -46,7 +46,7 @@ second_trainer_params:
   second_lr_ae: 1.0e-3
   second_lr_dg: 1.0e-3
   second_lr_h: 1.0e-4
-  second_total_max_epochs: 5
+  second_total_max_epochs: 2
   second_h_max_epochs: 10
 
 log_params:

@@ -13,14 +13,14 @@ import os
 import numpy as np
 from torch import optim
 import torch.nn as nn
-import itertools
-from trains import test
+
 
 # 忽略特定类型的警告
 warnings.filterwarnings("ignore", category=UserWarning, message=".*reduction.*")
 warnings.filterwarnings("ignore", category=UserWarning, message="The dataloader.*does not have many workers")
 warnings.filterwarnings("ignore", category=UserWarning, message=".*LightningModule.configure_optimizers.*")
 
+# 固定随机种子
 random_seed = 100
 random.seed(random_seed)
 np.random.seed(random_seed)
@@ -45,14 +45,12 @@ class Train():
         self.pre_train = None
         self.first_train = None
         self.second_train = None
+
+        self.y_predcit = None
+        self.y_true = self.cluster_dataset.dataset.y
         self.cluster_model.GenerateH(self.cluster_dataset.GetLen(), self.config['model_params']['H_dim'])
         ParameterTool.InitVarFromDict(self, config)
         self.__toCuda()
-        self.dataloader = DataLoader(
-            dataset = self.cluster_dataset.dataset,
-            batch_size = 400,
-            num_workers = 0
-        )
 
 
     def __toCuda(self):
@@ -67,7 +65,6 @@ class Train():
         """
         训练或者读取, 得到预训练的模型, 初始化AE的参数
         """
-        # test.TestTrain(encoder_decoder, self.dataloader)
 
         self.pre_train = PreTrain(
                 self.cluster_model.encoder_decoder,
@@ -126,6 +123,9 @@ class Train():
             # self.pre_train.Load(pre_config)
     
     def __SecondTrain(self):
+        """
+        训练或者读取, 得到第二次训练的模型, 训练AE, DG, H 
+        """
         self.second_train = SecondTrain(self.cluster_model, self.cluster_dataset, self.config)
         
         if self.is_second_train == True:
@@ -138,16 +138,35 @@ class Train():
             secondTrainer.fit(self.second_train, self.cluster_dataset)
             
             if self.save_second_model:
-                pass
+                self.second_train.Save()
             else:
                 pass
         else:
-            pass
+            self.second_train.Load()
      
-    def StartTrain(self):
-        if self.is_first_train == True:
-            self.__PreTrain(self.cluster_model.encoder_decoder)
-        self.__FirstTrain()
-        self.__SecondTrain()
+    def __EvaluateSoftAssign(self):
+        """
+        获取H, 计算软分配的聚类指标
+        """
+        q = self.cluster_model.degradation.get_q(self.cluster_model.H)
+        self.y_predcit = torch.argmax(q, 1).cpu().numpy()
+        # 软聚类的结果
+        acc, nmi, ri, f_score = Metric.GetMetrics(self.y_true, self.y_predcit)
+        output = "Soft Assignment.  ACC: {:.4f}, NMI:{:.4f}, RI:{:.4f}, F_score:{:.4f}" \
+            .format(acc, nmi, ri, f_score)
+        print(output)
 
+
+    def StartTrain(self):
+        # 读取第一次或者第二次训练的模型时，已经包含了预训练的过程
+        if self.is_second_train == True and self.is_first_train == True:
+            self.__PreTrain(self.cluster_model.encoder_decoder)
+        # 读取第二次训练的模型时，已经包含了第一次训练的过程
+        if self.is_second_train == True:
+            self.__FirstTrain()
+        self.__SecondTrain()
+        self.__EvaluateSoftAssign()
+
+        
+ 
     

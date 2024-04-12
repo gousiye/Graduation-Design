@@ -197,7 +197,7 @@ class FirstTrain(pl.LightningModule):
         check_folder_path = os.path.join(self.first_model_path, self.data_name)    
         check_model_path = os.path.join(check_folder_path, self.data_name) + '.pth.tar'
         print("------------------------")
-        print('\033[94m' + "已保存第一次训练AE模型到{path}".format(path = check_model_path) + '\033[0m')
+        print('\033[94m' + "已保存第一次训练模型到{path}".format(path = check_model_path) + '\033[0m')
         print("------------------------")
 
 
