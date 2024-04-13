@@ -1,3 +1,4 @@
+import scipy.io
 from trains import PreTrain
 from trains import FirstTrain
 from trains import SecondTrain
@@ -10,7 +11,8 @@ import warnings
 import random
 import os
 import numpy as np
-
+import scipy
+import h5py
 
 # 忽略特定类型的警告
 warnings.filterwarnings("ignore", category=UserWarning, message=".*reduction.*")
@@ -43,7 +45,7 @@ class Train():
         self.pre_train = None
         self.first_train = None
         self.second_train = None
-        self.y_predcit = None
+        self.y_predcit_soft = None
         self.y_true = self.cluster_dataset.dataset.y
         self.soft_assign_loss = {} # 软分配的各指标
         self.cluster_loss_avg = {} # 模拟聚类的各指标的平均值
@@ -180,11 +182,23 @@ class Train():
         if self.save_log:
             FileTool.SaveConfigYaml(os.path.join(self.log_path, path), self.yaml)
 
+    def __SaveClusterReuslt(self):
+        cluster_result = {
+             # matlab和python中的维度是反的
+            'y_true': self.y_true.reshape(-1,1),  # 这样有助于matlab中阅览
+            'y_predict':self.y_predcit.reshape(-1,1)
+        }
+        file_name = "cluster_result.mat"
+        scipy.io.savemat(os.path.join(self.model_path, file_name), cluster_result)
+
+
+                
     def __SaveResult(self):
         """
         保存结果, 包括.yaml说明文件,误差文件，聚类结果,混淆矩阵图片
         """
         self.__SaveYaml()
+        self.__SaveClusterReuslt()
 
 
     def StartTrain(self):
@@ -203,7 +217,7 @@ class Train():
         self.__FirstTrain()
         self.__SecondTrain()
         self.__EvaluateSoftAssign()
-        self.__StimulateCluster()
+        # self.__StimulateCluster()
         self.__SaveResult()
 
 
