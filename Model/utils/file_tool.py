@@ -94,6 +94,7 @@ class FileTool:
         encoder_list :List[EncoderDecoder],
         loss: dict = None,
     )->None:
+        assert path is not None,"路径不能为空"
         save_dic = FileTool.__CacheAEModel(encoder_list, loss)
         torch.save(save_dic, path)
 
@@ -135,84 +136,32 @@ class FileTool:
         cluster_model.H = checkPoint['H']
 
     @staticmethod
-    def SaveModelAndLog(
-        cluster_model: ClusterModel, 
-        config:dict,
-        path:dict,
-        loss_parameters:dict
+    def SaveModel(
+        path: str, 
+        cluster_model: ClusterModel,
+        loss_parameters: dict
     ):
         """
         正式训练保存模型及日志
-        """
-        model_path = path['model_path']
-        log_path = path['log_path']
-        data_name = path['data_name']
-
-        description = {}
-
-        now_time = datetime.datetime.now().strftime('%Y-%m-%d-%H-%M-%S')
-        check_folder_path = os.path.join(model_path, data_name)    
-        check_model_path = os.path.join(check_folder_path, data_name) + '.pth.tar'
-        check_param_path = os.path.join(check_folder_path, data_name) + '.yaml'
-
-        log_folder_path = os.path.join(log_path, data_name + now_time)    
-        log_model_path = os.path.join(log_folder_path, data_name) + '.pth.tar'
-        log_param_path = os.path.join(log_folder_path, data_name) + '.yaml'
-
-        hyper_parameters = config
-        model_parameters = utils.ParameterTool.GetModelDescription(cluster_model)
-
-        if not os.path.exists(check_folder_path):
-            os.makedirs(check_folder_path)
-        if not os.path.exists(log_folder_path):
-            os.makedirs(log_folder_path)
+        """        
+        assert path is not None, "路径不能为空"
+        FileTool.__SaveModel(path, cluster_model, loss_parameters)
         
-        FileTool.__SaveModel(check_model_path, cluster_model, loss_parameters)
-        FileTool.__SaveModel(log_model_path, cluster_model, loss_parameters)
-
-        description.update(hyper_parameters)
-        description.update(loss_parameters)
-        description.update(model_parameters)
-
-        FileTool.SaveConfigYaml(check_param_path, description)
-        FileTool.SaveConfigYaml(log_param_path, description)
-        
-
 
     @staticmethod 
-    def LoadAndLog(
+    def LoadModel(
+        path: str,
         cluster_model:ClusterModel,
-        config:dict,
-        path:dict
+        loss_parameters:dict
     ):
         """
         读取模型，日志
         """
-        model_path = path['model_path']
-        data_name = path['data_name']
-
-        description = {}
-
-        check_folder_path = os.path.join(model_path, data_name)    
-        check_model_path = os.path.join(check_folder_path, data_name) + '.pth.tar'
-        check_param_path = os.path.join(check_folder_path, data_name) + '.yaml'
-
-        assert os.path.exists(check_model_path), '该模型没有存储文件'
-        loss_parameters = {}
-
-        FileTool.__LoadModel(check_model_path, cluster_model, loss_parameters)
+        assert path is not None, "模型路径不能为空"
+        assert os.path.exists(path), '该模型没有存储文件'
+        FileTool.__LoadModel(path, cluster_model, loss_parameters)
         
 
-        hyper_parameters = config
-        model_parameters = utils.ParameterTool.GetModelDescription(cluster_model)
-
-        description.update(hyper_parameters)
-        description.update(loss_parameters)
-        description.update(model_parameters)
-        FileTool.SaveConfigYaml(
-            check_param_path,
-            description
-        )
         
 
 

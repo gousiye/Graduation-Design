@@ -27,6 +27,8 @@ class SecondTrain(pl.LightningModule):
         self.cluster_model = cluster_model
         self.cluster_dataset = cluster_dataset
         self.random_seed = 100  # kMeans的随机种子，设置成固定的，有一定稳定性
+        self.loss_parameters = {} 
+        self.model_parameters = {} 
         self.dataloader = DataLoader(
             dataset = self.cluster_dataset.dataset,
             batch_size = self.batch_size,
@@ -145,8 +147,6 @@ class SecondTrain(pl.LightningModule):
         self.cluster_model.degradation.set_h(h)
         ae_loss = self.train_ae(features, h)
         h_loss = self.train_h(features, h)
-        self.ae_loss = ae_loss
-        self.h_loss = h_loss
         self.log('ae_loss', ae_loss)
         self.log('h_loss', h_loss)
         self.__update_H(batch_idx)
@@ -158,6 +158,8 @@ class SecondTrain(pl.LightningModule):
         current_epoch = self.current_epoch
         ae_loss = torch.stack([x['ae_loss'] for x in outputs]).sum()
         h_loss = torch.stack([x['h_loss'] for x in outputs]).sum()
+        self.ae_loss = ae_loss
+        self.h_loss = h_loss
         output = "Second_epoch: {:.0f}, ae_loss: {:.4f}, h_loss:{:.4f}.". \
             format(current_epoch, ae_loss, h_loss)
         print(output)
@@ -165,56 +167,62 @@ class SecondTrain(pl.LightningModule):
         self.cluster_model.degradation.set_h(torch.FloatTensor(self.batch_size, self.H_dim))
 
     def on_train_end(self):
+        self.cluster_model.degradation.h = torch.nn.Parameter(torch.FloatTensor(self.batch_size, self.H_dim))
+        loss_parameters = {}
+        loss_parameters['ae_loss'] = self.ae_loss.item()
+        loss_parameters['h_loss'] = self.h_loss.item()
+        self.loss_parameters['loss'] = loss_parameters
+        self.model_parameters = ParameterTool.GetModelDescription(self.cluster_model)
         print()
         print("----------------------训练第二步结束---------------------")
         print()
-        # acc, nmi, ri, f_score = self.__GetSoftClusterMetric()
-        # output = "根据H的软分配聚类结果如下: "
-        # output += "ACC = {:.4f}, NI = {:.4f}, RI = {:.4f}, F_score = {:.4f}".format(acc, nmi, ri, f_score)
-        # print(output)
 
 
     # ae中的center， dg中的h 每次都会改变，每个epoch都需要重新设置优化器
     def configure_optimizers(self) -> dict:
         return None
 
-
-    def Save(self):
+    def UpdateYaml(self,yaml):
         """
-        存储模型，日志
+        更新yaml描述
         """
-        path = {}
-        loss = {}
-        path['model_path'] = self.second_model_path
-        path['log_path'] = self.second_log_path
-        path['data_name'] = self.data_name
-        loss['ae_loss'] = self.ae_loss.item()
-        loss['h_loss'] = self.h_loss.item()
-        description = ParameterTool.Description(self.config, 'second')
-        FileTool.SaveModelAndLog(self.cluster_model, description, path, loss)
+        yaml['second_train'] = {}
+        field = {
+            'second_trainer_params':['second_lr_ae', 'second_lr_dg', 'second_lr_h', 'second_total_max_epochs','second_h_max_epochs']
+        }
+        params = ParameterTool.GetDescription(self.config, field)
+        yaml['second_train'].update(params)
+        yaml['second_train'].update(self.loss_parameters)
+        yaml['second_train'].update(self.model_parameters)
+        FileTool.SaveConfigYaml("test.yaml", yaml)     
+    
+    def SaveModel(self):
+        """
+        存储模型，
+        """
+        FileTool.SaveModel(os.path.join(self.model_path,'second_train')+'.pth.tar', self.cluster_model, self.loss_parameters)
+        if self.is_second_train == True:
+            print("------------------------")
+            print('\033[94m' + "已保存第二次训练模型到{path}".format(path = self.model_path ) + '\033[0m')
+            print("------------------------")
 
-        check_folder_path = os.path.join(self.second_model_path, self.data_name)    
-        check_model_path = os.path.join(check_folder_path, self.data_name) + '.pth.tar'
-        print("------------------------")
-        print('\033[94m' + "已保存第二次训练模型到{path}".format(path = check_model_path) + '\033[0m')
-        print("------------------------")
-
+    def SaveLog(self):
+        """
+        保存日志
+        """
+        FileTool.SaveModel(os.path.join(self.log_path,'second_train')+'.pth.tar', self.cluster_model, self.loss_parameters)
 
     def Load(self):
         """
         读取模型, 生成相关日志
         """
-        path = {}
-        path['model_path'] = self.second_model_path
-        path['log_path'] = self.second_log_path
-        path['data_name'] = self.data_name
-        description = ParameterTool.Description(self.config, 'first')
-        FileTool.LoadAndLog(self.cluster_model, description, path)
-
-        check_folder_path = os.path.join(self.first_model_path, self.data_name)    
-        check_model_path = os.path.join(check_folder_path, self.data_name) + '.pth.tar'
+        self.loss_parameters = {}
+        self.model_parameters = ParameterTool.GetModelDescription(self.cluster_model)
+        model_file = os.path.join(self.model_path,'second_train') + '.pth.tar'
+        assert os.path.exists(model_file), "模型文件不存在"
+        FileTool.LoadModel(model_file, self.cluster_model, self.loss_parameters)
         print("------------------------")
-        print('\033[94m' + "已从{path}读取第二次训练模型".format(path = check_model_path) + '\033[0m')
+        print('\033[94m' + "已从{path}读取第二次训练模型".format(path = self.model_path) + '\033[0m')
         print("------------------------")
 
 

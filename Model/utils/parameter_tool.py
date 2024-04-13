@@ -12,48 +12,13 @@ class ParameterTool:
         raise TypeError("这是一个静态工具类，不能被实例化")
     
     @staticmethod
-    def PreDescription(config) -> dict:
+    def GetDescription(config, field) -> dict:
         pre_description = {}
-        field = {
-            'model_params': ['latent_encoder_dim','H_dim', 'pre_model_path'],
-            'data_params':['data_name', 'view_num', 'cluster_num', 'batch_size', 'num_workers'],
-            'device_params':['accelerator', 'devices'],
-            'pre_trainer_params':['pre_max_epochs', 'pre_lr_ae'],
-            'log_params':['pre_log_path']
-        }
         for para_aspect in field:
             pre_description[para_aspect] = {}
             for index, param in enumerate(field[para_aspect]):
                pre_description[para_aspect][param] = config[para_aspect][field[para_aspect][index]]
         return pre_description
-
-    @staticmethod
-    def Description(config: dict, kind: str) -> dict:
-            description = {}
-            field = {
-                'model_params': ['latent_encoder_dim','H_dim', kind + '_model_path'],
-                'data_params':['data_name', 'view_num', 'cluster_num', 'batch_size', 'num_workers'],
-                'device_params':['accelerator', 'devices'], 
-                'log_params':[kind + '_log_path']
-            }
-            if kind == 'first':
-                field['first_trainer_params'] = [
-                    'first_total_max_epochs', 'first_h_max_epochs', 
-                    'first_lr_ae', 'first_lr_dg', 'first_lr_h'
-                ]
-                
-            if kind == 'second':
-                field['second_trainer_params'] = [
-                    'second_total_max_epochs', 'second_h_max_epochs', 
-                    'second_lr_ae', 'second_lr_dg', 'second_lr_h'
-                ]         
-                    
-            for para_aspect in field:
-                description[para_aspect] = {}
-                for index, param in enumerate(field[para_aspect]):
-                    description[para_aspect][param] = config[para_aspect][field[para_aspect][index]]
-            return description
-
 
     @staticmethod
     def __GetEncoderDescription(encoder_decoder:List[EncoderDecoder]) -> dict:
@@ -65,7 +30,8 @@ class ParameterTool:
                 coder_description['encoder'].append(str(encoder))
             for decoder in encoder_decoder[i].decoders:
                 coder_description['decoder'].append(str(decoder))
-            iter_description['[{i}]'.format(i = i)] = coder_description
+            index = 'view[{i}]'.format(i = i)
+            iter_description[index] = coder_description
         description['encoder_decoders'] = iter_description       
         return description
 
@@ -92,9 +58,10 @@ class ParameterTool:
         inner_description = ParameterTool.__GetEncoderDescription(cluster_model.encoder_decoder)
         inner_description['degradation'] = {}
         for i in range(len(cluster_model.degradation.degrader)):
-            inner_description['degradation']['[{i}]'.format(i = i)] = []
+            index = 'view[{i}]'.format(i = i)
+            inner_description['degradation'][index] = []
             for layer in cluster_model.degradation.degrader[i]:
-                inner_description['degradation']['[{i}]'.format(i = i)].append(str(layer))
+                inner_description['degradation'][index].append(str(layer))
         description['model_structure'] = inner_description
         return description
         

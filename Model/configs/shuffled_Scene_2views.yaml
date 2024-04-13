@@ -1,26 +1,17 @@
 model_params:
   latent_encoder_dim: 128
   H_dim: 128
-  save_pre_model: True
-  save_first_model: True
-  save_second_model: True
-  pre_model_path: 'checkpoint/pre_models'
-  first_model_path: 'checkpoint/first_models'
-  second_model_path: 'checkpoint/second_models'
+  save_model: True
+  # inact path: checkpoint/<data_name>/<field>
+  model_path: 'checkpoint'
 
 data_params:
   data_name: 'shuffled_Scene_2views'
   data_path: 'dataset'
   view_num: 2
   cluster_num: 15
-  batch_size: 400
+  batch_size: 400 
   num_workers: 0
-
-exp_params:
-  lr_ae: 1.0e-3
-  lr_dg: 1.0e-3
-  lr_h: 1.0e-3
-  lr_pre: 1.0e-3
 
 train_params:
   is_pre_train: False
@@ -33,23 +24,23 @@ device_params:
 
 pre_trainer_params:
   pre_lr_ae: 1.0e-3
-  pre_max_epochs: 100
+  pre_max_epochs: 10
 
 first_trainer_params:
   first_lr_ae: 1.0e-3
   first_lr_dg: 1.0e-3
   first_lr_h: 1.0e-3
-  first_total_max_epochs: 15
-  first_h_max_epochs: 20
+  first_total_max_epochs: 5
+  first_h_max_epochs: 2
 
 second_trainer_params:
   second_lr_ae: 1.0e-3
   second_lr_dg: 1.0e-3
   second_lr_h: 1.0e-4
-  second_total_max_epochs: 2
-  second_h_max_epochs: 10
+  second_total_max_epochs: 1
+  second_h_max_epochs: 3
 
 log_params:
-  pre_log_path: "logs/pre_train_logs"
-  first_log_path: "logs/first_train_logs"
-  second_log_path: "logs/second_train_logs"
+  # inact path: logs/<data_name>/<field>
+  save_log: False
+  log_path: 'logs'

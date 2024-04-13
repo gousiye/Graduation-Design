@@ -2,12 +2,12 @@ import argparse
 import numpy as np
 from models import *    #导入的时候就执行了models/__init__.py
 from utils import MyDataset, ClusterDataset, FileTool, Cluster
-import torch
+import datetime
 import test
 from trains import Train
 from pytorch_lightning import Trainer
 from pytorch_lightning.callbacks import ModelCheckpoint
-
+import os
 
 parser = argparse.ArgumentParser(description='Deep Cluster Model')
 
@@ -58,10 +58,14 @@ def ConstructModelAndDataset():
 
 if __name__ == '__main__':
     config = FileTool.ReadConfig(args)
+    config['model_params']['model_path'] = \
+        os.path.join(config['model_params']['model_path'], config['data_params']['data_name'])
+    now_time = datetime.datetime.now().strftime('%Y-%m-%d-%H-%M-%S')
+    config['log_params']['log_path'] = \
+        os.path.join(config['log_params']['log_path'], config['data_params']['data_name'] + now_time)
+    
     print('--------------------start------------------------')
     print()
     cluster_model, cluster_dataset = ConstructModelAndDataset()
     train = Train(cluster_model, cluster_dataset, config)
     train.StartTrain()
-    cluster = Cluster(cluster_model, cluster_dataset.dataset.y)
-    cluster.ConductCluster()

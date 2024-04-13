@@ -2,7 +2,7 @@ from models import ClusterModel
 from utils import Metric
 import numpy as np
 from sklearn.cluster import KMeans
-
+from tqdm import tqdm
 class Cluster():
     """
     给定一个聚类模型cluster_model。根据cluster_model中的H进行times次数的k-means聚类。
@@ -23,13 +23,12 @@ class Cluster():
         """
         在给定的cluter_model的H进行k-means聚类
         """       
-        for i in range(self.times):
+        print("Stimulating Clustering :")
+        for i in tqdm(range(self.times)):
             km = KMeans(self.cluster_model.cluster_num, n_init= 10)
             predict = km.fit_predict(self.cluster_model.H)
             self.y_predict.append(predict)
         if np.min(self.y_true) == 1:
             self.y_true -= 1  # 默认0是第一类，与软分配一致
         acc_avg, nmi_avg, ri_avg, f_score_avg = Metric.GetAvgMetrics(self.y_true, self.y_predict)
-        output = "Cluster Average. ACC:{:.4f}, NMI:{:.4f}, RI:{:.4f}, F-score:{:.4f}" \
-            .format(acc_avg, nmi_avg, ri_avg, f_score_avg)
-        print(output)
+        return acc_avg, nmi_avg, ri_avg, f_score_avg

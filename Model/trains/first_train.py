@@ -26,6 +26,8 @@ class FirstTrain(pl.LightningModule):
         self.ae_loss = float('inf')
         self.dg_loss = float('inf')
         self.h_loss = float('inf')
+        self.loss_parameters = {}
+        self.model_parameters = {}
         ParameterTool.InitVarFromDict(self, self.config)
 
         self.dataloader = DataLoader(
@@ -125,9 +127,6 @@ class FirstTrain(pl.LightningModule):
         ae_loss = self.train_ae(features)
         dg_loss = self.train_dg(features)
         h_loss = self.train_h(features)
-        self.ae_loss = ae_loss
-        self.dg_loss = dg_loss
-        self.h_loss = h_loss
         self.log('ae_loss', ae_loss)
         self.log('dg_loss', dg_loss)
         self.log('h_loss', h_loss)
@@ -138,11 +137,13 @@ class FirstTrain(pl.LightningModule):
 
     def training_epoch_end(self, outputs: List) -> None:
         print()
-        
         current_epoch = self.current_epoch
         ae_loss = torch.stack([x['ae_loss'] for x in outputs]).sum()
         dg_loss = torch.stack([x['dg_loss'] for x in outputs]).sum()
         h_loss = torch.stack([x['h_loss'] for x in outputs]).sum()
+        self.ae_loss = ae_loss
+        self.dg_loss = dg_loss
+        self.h_loss = h_loss
         output = "First_epoch: {:.0f}, ae_loss: {:.4f}, dg_loss:{:.4f}, h_loss:{:.4f}.". \
             format(current_epoch, ae_loss, dg_loss, h_loss)
         print(output)
@@ -151,12 +152,18 @@ class FirstTrain(pl.LightningModule):
         # 同时有ae_loss, h_loss, loss 也与H的好坏没有必然关系，因此这里保存最后一个模型 
             
     def on_train_end(self):
-        
+        # degradateion.h已经没有用了，这样只是便于存储和读取
+        self.cluster_model.degradation.h = torch.nn.Parameter(torch.FloatTensor(self.batch_size, self.H_dim))
+        loss_parameters = {}
+        loss_parameters['ae_loss'] = self.ae_loss.item()
+        loss_parameters['dg_loss'] = self.dg_loss.item()
+        loss_parameters['h_loss'] = self.h_loss.item()
+        self.loss_parameters['loss'] = loss_parameters
+        self.model_parameters = ParameterTool.GetModelDescription(self.cluster_model)
         print()
         print("----------------------训练第一步结束---------------------")
         print()
-        # degradateion.h已经没有用了，这样只是便于存储和读取
-        self.cluster_model.degradation.h = torch.nn.Parameter(torch.FloatTensor(self.batch_size, self.H_dim))
+
 
 
     # 3个训练步骤中，值参数值
@@ -178,44 +185,48 @@ class FirstTrain(pl.LightningModule):
         # optims.append(optim.Adam(self.cluster_model.degradation.parameters(), lr = self.lr_h))
         # return optims
 
-
-    def Save(self):
+    def UpdateYaml(self, yaml):
         """
-        存储模型，日志
+        更新yaml描述
         """
-        path = {}
-        loss = {}
-        path['model_path'] = self.first_model_path
-        path['log_path'] = self.first_log_path
-        path['data_name'] = self.data_name
-        loss['ae_loss'] = self.ae_loss.item()
-        loss['dg_loss'] = self.dg_loss.item()
-        loss['h_loss'] = self.h_loss.item()
-        description = ParameterTool.Description(self.config, 'first')
-        FileTool.SaveModelAndLog(self.cluster_model, description, path, loss)
-
-        check_folder_path = os.path.join(self.first_model_path, self.data_name)    
-        check_model_path = os.path.join(check_folder_path, self.data_name) + '.pth.tar'
-        print("------------------------")
-        print('\033[94m' + "已保存第一次训练模型到{path}".format(path = check_model_path) + '\033[0m')
-        print("------------------------")
+        yaml['first_train'] = {}
+        field = {
+            'first_trainer_params':['first_lr_ae', 'first_lr_dg', 'first_lr_h', 'first_total_max_epochs','first_h_max_epochs']
+        }
+        params = ParameterTool.GetDescription(self.config, field)
+        yaml['first_train'].update(params)
+        yaml['first_train'].update(self.loss_parameters)
+        yaml['first_train'].update(self.model_parameters)
+        # FileTool.SaveConfigYaml("test.yaml", yaml)
 
 
+    def SaveModel(self):
+        """
+        存储模型
+        """
+        FileTool.SaveModel(os.path.join(self.model_path,'first_train')+'.pth.tar', self.cluster_model, self.loss_parameters)
+        if self.is_first_train == True:
+            print("------------------------")
+            print('\033[94m' + "已保存第一次训练模型到{path}".format(path = self.model_path) + '\033[0m')
+            print("------------------------")
+
+    def SaveLog(self):
+        """
+        存储日志
+        """
+        FileTool.SaveModel(os.path.join(self.log_path,'first_train')+'.pth.tar', self.cluster_model, self.loss_parameters)
+    
     def Load(self):
         """
-        读取模型, 生成相关日志
+        读取模型
         """
-        path = {}
-        path['model_path'] = self.first_model_path
-        path['log_path'] = self.first_log_path
-        path['data_name'] = self.data_name
-        description = ParameterTool.Description(self.config, 'first')
-        FileTool.LoadAndLog(self.cluster_model, description, path)
-
-        check_folder_path = os.path.join(self.first_model_path, self.data_name)    
-        check_model_path = os.path.join(check_folder_path, self.data_name) + '.pth.tar'
+        self.loss_parameters = {}
+        self.model_parameters = ParameterTool.GetModelDescription(self.cluster_model)
+        model_file = os.path.join(self.model_path,'first_train') + '.pth.tar'
+        assert os.path.exists(model_file), "模型文件不存在"
+        FileTool.LoadModel(model_file, self.cluster_model, self.loss_parameters)
         print("------------------------")
-        print('\033[94m' + "已从{path}读取第一次训练模型".format(path = check_model_path) + '\033[0m')
+        print('\033[94m' + "已从{path}读取第一次训练模型".format(path = self.model_path) + '\033[0m')
         print("------------------------")
         
 
