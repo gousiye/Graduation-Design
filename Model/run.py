@@ -69,3 +69,5 @@ if __name__ == '__main__':
     cluster_model, cluster_dataset = ConstructModelAndDataset()
     train = Train(cluster_model, cluster_dataset, config)
     train.StartTrain()
+    print()
+    print("-------------------end---------------------------")

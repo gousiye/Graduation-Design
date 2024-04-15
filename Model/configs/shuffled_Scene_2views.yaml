@@ -4,6 +4,7 @@ model_params:
   save_model: True
   # inact path: checkpoint/<data_name>/<field>
   model_path: 'checkpoint'
+  embedded_visualize: True
 
 data_params:
   data_name: 'shuffled_Scene_2views'

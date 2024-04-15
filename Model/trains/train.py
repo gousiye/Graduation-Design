@@ -4,7 +4,7 @@ from trains import FirstTrain
 from trains import SecondTrain
 from models import ClusterModel
 from pytorch_lightning import Trainer
-from utils import ClusterDataset,  ParameterTool, Metric, Cluster, FileTool
+from utils import ClusterDataset,  ParameterTool, Metric, Cluster, FileTool, Visualize
 from pytorch_lightning.callbacks import ModelCheckpoint
 import torch
 import warnings
@@ -45,7 +45,7 @@ class Train():
         self.pre_train = None
         self.first_train = None
         self.second_train = None
-        self.y_predcit_soft = None
+        self.y_predcit = None
         self.y_true = self.cluster_dataset.dataset.y
         self.soft_assign_loss = {} # 软分配的各指标
         self.cluster_loss_avg = {} # 模拟聚类的各指标的平均值
@@ -153,10 +153,10 @@ class Train():
         self.y_predcit = torch.argmax(q, 1).cpu().numpy()
         # 软聚类的结果
         acc, nmi, ri, f_score = Metric.GetMetrics(self.y_true, self.y_predcit)
-        self.soft_assign_loss['acc'] = acc
-        self.soft_assign_loss['nmi'] = nmi
-        self.soft_assign_loss['ri'] = ri
-        self.soft_assign_loss['f_score'] = f_score 
+        self.soft_assign_loss['acc'] = float(acc)
+        self.soft_assign_loss['nmi'] = float(nmi)
+        self.soft_assign_loss['ri'] = float(ri)
+        self.soft_assign_loss['f_score'] = float(f_score)
         output = "Soft Assignment.  ACC:{:.4f}, NMI:{:.4f}, RI:{:.4f}, F_score:{:.4f}" \
             .format(acc, nmi, ri, f_score)
         print(output)
@@ -167,45 +167,78 @@ class Train():
         """
         cluster = Cluster(self.cluster_model, self.cluster_dataset.dataset.y)
         acc, nmi, ri, f_score = cluster.ConductCluster()
-        self.soft_assign_loss['acc'] = acc
-        self.soft_assign_loss['nmi'] = nmi
-        self.soft_assign_loss['ri'] = ri
-        self.soft_assign_loss['f_score'] = f_score
+        self.cluster_loss_avg['acc'] = acc
+        self.cluster_loss_avg['nmi'] = nmi
+        self.cluster_loss_avg['ri'] = ri
+        self.cluster_loss_avg['f_score'] = f_score
         output = "Cluster Average. ACC:{:.4f}, NMI:{:.4f}, RI:{:.4f}, F-score:{:.4f}" \
              .format(acc, nmi, ri, f_score)
         print(output)
 
     def __SaveYaml(self):
+        """
+        添加软分配, 聚类后的ACC, NMI ,RI
+        保存.yaml描述文件
+        """
         path = "description.yaml"
+        cluster_metrics = {}
+        cluster_metrics['cluster_metrics'] = {}
+        cluster_metrics['cluster_metrics']['DEC Soft Assignment'] = self.soft_assign_loss
+        memo_dir = self.yaml
+        self.yaml = {}
+        for index, (key, value) in enumerate(memo_dir.items()):
+            self.yaml[key] = value
+            if key == 'device_params':
+                self.yaml.update(cluster_metrics)
         if self.save_model:
-            FileTool.SaveConfigYaml(os.path.join(self.model_path, path), self.yaml)
+            FileTool.SaveConfigYaml(os.path.join(self.model_path, "output", path), self.yaml)
         if self.save_log:
-            FileTool.SaveConfigYaml(os.path.join(self.log_path, path), self.yaml)
+            FileTool.SaveConfigYaml(os.path.join(self.log_path, "output",path), self.yaml)
 
     def __SaveClusterReuslt(self):
+        """
+        保存聚类结果和指标信息
+        """
         cluster_result = {
              # matlab和python中的维度是反的
             'y_true': self.y_true.reshape(-1,1),  # 这样有助于matlab中阅览
             'y_predict':self.y_predcit.reshape(-1,1)
         }
         file_name = "cluster_result.mat"
-        scipy.io.savemat(os.path.join(self.model_path, file_name), cluster_result)
+        if self.save_model:
+            scipy.io.savemat(os.path.join(self.model_path, "output", file_name), cluster_result)
+        if self.save_log:
+            scipy.io.savemat(os.path.join(self.log_path, "output", file_name), cluster_result)
 
-
+    def __SaveGraph(self):
+        """
+        保存混淆矩阵，嵌入空间可视化图片
+        """
+        confuse_matrix = "confuse_matrix"
+        embedded_visualize = "embedded_H_visualize"
+        if self.save_model:
+            Visualize.GenerateConfuseGraph(self.y_true, self.y_predcit, os.path.join(self.model_path, "output", confuse_matrix))
+            if self.embedded_visualize == True:
+                Visualize.Generate_TENE_H(self.y_true, self.cluster_model.H,os.path.join(self.model_path, "output", embedded_visualize))
+        if self.save_log:
+            Visualize.GenerateConfuseGraph(self.y_true, self.y_predcit, os.path.join(self.log_path, "output", confuse_matrix))
+            if self.embedded_visualize == True:
+                Visualize.Generate_TENE_H(self.y_true, self.cluster_model.H,os.path.join(self.log_path, "output", embedded_visualize))
                 
     def __SaveResult(self):
         """
         保存结果, 包括.yaml说明文件,误差文件，聚类结果,混淆矩阵图片
         """
         self.__SaveYaml()
-        self.__SaveClusterReuslt()
-
-
+        self.__SaveClusterReuslt()  
+        self.__SaveGraph()
     def StartTrain(self):
         if self.save_model == True:
             self.__SetFolder(self.model_path)
+            self.__SetFolder(os.path.join(self.model_path, "output"))
         if self.save_log == True:
             self.__SetFolder(self.log_path)
+            self.__SetFolder(os.path.join(self.model_path, "output"))
         self.__InitialYaml()
 
         # 后面的不训练，那么前面的也不应该训练

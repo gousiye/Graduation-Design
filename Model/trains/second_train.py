@@ -194,7 +194,7 @@ class SecondTrain(pl.LightningModule):
         yaml['second_train'].update(params)
         yaml['second_train'].update(self.loss_parameters)
         yaml['second_train'].update(self.model_parameters)
-        FileTool.SaveConfigYaml("test.yaml", yaml)     
+        # FileTool.SaveConfigYaml("test.yaml", yaml)     
     
     def SaveModel(self):
         """
